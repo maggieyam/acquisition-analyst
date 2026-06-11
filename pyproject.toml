@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "acquisition-analyst"
+version = "0.1.0"
+description = "Buy-side M&A due diligence SDK: deterministic SaaS-metric scoring with LLM-written IC memos and DD questions"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.7.0",
+    "google-genai>=1.0.0",
+]
+
+[project.optional-dependencies]
+demo = [
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.29.0",
+    "jinja2>=3.1.4",
+    "python-multipart>=0.0.9",
+    "markdown-it-py>=3.0.0",
+    "python-dotenv>=1.0.0",
+]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/acquisition_analyst"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

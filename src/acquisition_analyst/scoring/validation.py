@@ -1,16 +1,11 @@
-"""Tool 1 — Completeness validation + sanity flags. Deterministic."""
+"""Completeness validation + sanity flags. Deterministic."""
 
-from models import AnalysisRequest, ValidationResult
+from ..models import AnalysisRequest, ValidationResult
 
 REQUIRED_METRICS = [
     "arr", "arr_growth", "nrr", "grr",
     "cac_payback_months", "ltv_cac", "magic_number",
     "burn_multiple", "gross_margin", "ebitda_margin",
-]
-
-REQUIRED_DEAL = [
-    "buyer_segment", "return_target", "hold_years",
-    "stage", "vertical", "size_band",
 ]
 
 VALID_BUYER_SEGMENTS = {"growth_equity", "lmm", "strategic"}
@@ -32,11 +27,10 @@ SANITY_BOUNDS: dict[str, tuple[float, float]] = {
 }
 
 
-def run(req: AnalysisRequest) -> ValidationResult:
+def validate(req: AnalysisRequest) -> ValidationResult:
     missing: list[str] = []
     warnings: list[str] = []
 
-    # Enum-like field checks
     if req.buyer_segment not in VALID_BUYER_SEGMENTS:
         missing.append(f"buyer_segment must be one of {sorted(VALID_BUYER_SEGMENTS)}, got '{req.buyer_segment}'")
     if req.stage not in VALID_STAGES:
@@ -46,7 +40,6 @@ def run(req: AnalysisRequest) -> ValidationResult:
     if req.size_band not in VALID_SIZE_BANDS:
         missing.append(f"size_band must be one of {sorted(VALID_SIZE_BANDS)}, got '{req.size_band}'")
 
-    # Required numeric metrics — already enforced by Pydantic, but we surface them cleanly
     for field in REQUIRED_METRICS:
         if getattr(req, field, None) is None:
             missing.append(field)
@@ -67,7 +60,6 @@ def run(req: AnalysisRequest) -> ValidationResult:
             "Verify both figures."
         )
 
-    # Customer concentration check
     if req.customer_concentration_top10_pct is not None:
         if req.customer_concentration_top10_pct > 50:
             warnings.append(
@@ -75,9 +67,8 @@ def run(req: AnalysisRequest) -> ValidationResult:
                 "is high; churn risk is elevated."
             )
 
-    # Series length consistency (warn if series provided but very short)
     if req.series:
-        for metric_field in vars(req.series):
+        for metric_field in type(req.series).model_fields:
             series_val = getattr(req.series, metric_field)
             if series_val is not None and len(series_val) < 2:
                 warnings.append(

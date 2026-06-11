@@ -1,26 +1,40 @@
-"""FastAPI app — one endpoint + a minimal HTML form."""
+"""Demo web app for the acquisition_analyst SDK — one form, saved cases.
+
+This app is a reference consumer of the SDK; the product is the SDK itself.
+Run with:  uvicorn demo.app:app --reload
+"""
 
 import json
-import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
-
-from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from models import AnalysisRequest, MetricSeries
-from orchestrator import run as orchestrate
-from case_store import CaseStore
+from acquisition_analyst import (
+    DEFAULT_MODEL,
+    SUPPORTED_MODELS,
+    AnalysisRequest,
+    Analyst,
+    ConfigError,
+)
+
+from .case_store import CaseStore
 
 case_store = CaseStore()
 
-app = FastAPI(title="M&A DD Metric Analyzer", version="0.1.0")
-templates = Jinja2Templates(directory="templates")
+app = FastAPI(title="M&A DD Metric Analyzer (demo)", version="0.1.0")
+templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+
+def _make_analyst(model: str | None) -> Analyst:
+    selected = model if model in SUPPORTED_MODELS else DEFAULT_MODEL
+    return Analyst.from_env(model=selected)
+
 
 # ── Sample target (vertical SaaS, growth_equity, ~$25M ARR) ──────────────────
 SAMPLE_TARGET = {
@@ -83,23 +97,22 @@ async def analyze_form(request: Request):
     except Exception as e:
         return HTMLResponse(content=f"<h2>Input Error</h2><pre>{e}</pre>", status_code=400)
 
+    analyst = _make_analyst(gemini_model)
     try:
-        findings = orchestrate(req, model=gemini_model)
+        findings = analyst.analyze(req)
     except Exception as e:
         return HTMLResponse(content=f"<h2>Analysis Error</h2><pre>{e}</pre>", status_code=500)
 
-    has_key = bool(os.environ.get("GOOGLE_API_KEY"))
-    from report_agent import _MODEL_FLASH, _MODEL_PRO, _MODEL_DEFAULT
-    active_model = (gemini_model if gemini_model in (_MODEL_FLASH, _MODEL_PRO) else _MODEL_DEFAULT) if has_key else ""
+    active_model = analyst.model if analyst.has_llm else ""
 
     # Auto-save every analysis run
     case_name = _auto_case_name(req)
     case_id   = case_store.save(case_name, json.loads(req.model_dump_json()),
-                                json.loads(findings.model_dump_json()), active_model)
+                                json.loads(findings.model_dump_json()), active_model or "")
 
     return templates.TemplateResponse(
         request, "result.html",
-        _result_context(findings, active_model, request_json=req.model_dump_json(),
+        _result_context(findings, active_model or "", request_json=req.model_dump_json(),
                         case_id=case_id, case_name=case_name),
     )
 
@@ -170,11 +183,12 @@ async def dd_questions_endpoint(request: Request):
     gemini_model  = str(body.get("gemini_model", "")).strip() or None
     case_id       = body.get("case_id")
 
-    from report_agent import generate_dd_questions
+    analyst = _make_analyst(gemini_model)
     try:
-        questions = generate_dd_questions(findings_dict, model=gemini_model)
+        questions = analyst.generate_dd_questions(findings_dict)
+    except ConfigError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
     except Exception as e:
-        import traceback; traceback.print_exc()
         return JSONResponse({"error": "Question generation failed — please try again.", "detail": str(e)}, status_code=500)
 
     if case_id and questions:
@@ -191,8 +205,11 @@ async def dd_questions_review(request: Request):
     findings_dict  = json.loads(body.get("findings_json", "{}"))
     gemini_model   = str(body.get("gemini_model", "")).strip() or None
 
-    from report_agent import review_dd_questions
-    resolved = review_dd_questions(open_questions, findings_dict, model=gemini_model)
+    analyst = _make_analyst(gemini_model)
+    try:
+        resolved = analyst.review_dd_questions(open_questions, findings_dict)
+    except ConfigError:
+        resolved = []
     return JSONResponse({"resolved": resolved})
 
 
@@ -234,49 +251,16 @@ async def case_rerun(case_id: str, request: Request):
     if record.get("findings"):
         existing_dd_questions = record["findings"].get("dd_questions") or None
 
-    gemini_model = record.get("gemini_model") or None
-    from report_agent import _MODEL_FLASH, _MODEL_PRO, _MODEL_DEFAULT
-    has_key = bool(os.environ.get("GOOGLE_API_KEY"))
-    active_model = (gemini_model if gemini_model in (_MODEL_FLASH, _MODEL_PRO) else _MODEL_DEFAULT) if has_key else ""
-
+    analyst = _make_analyst(record.get("gemini_model") or None)
     try:
-        findings = orchestrate(req, model=active_model or None, existing_dd_questions=existing_dd_questions)
+        findings = analyst.analyze(req, existing_dd_questions=existing_dd_questions)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
 
     findings_data = json.loads(findings.model_dump_json())
-    case_store.update_findings(case_id, findings_data, active_model)
+    case_store.update_findings(case_id, findings_data, analyst.model or "")
 
     return JSONResponse({"ok": True})
-
-
-@app.get("/cases/{case_id}/export/pptx")
-async def export_pptx(case_id: str):
-    record = case_store.get(case_id)
-    if not record:
-        return JSONResponse({"error": "not found"}, status_code=404)
-    findings_dict = record.get("findings") or {}
-
-    from report_agent import _api_keys, _MODEL_FLASH, _MODEL_PRO, _MODEL_DEFAULT
-    if not _api_keys():
-        return JSONResponse({"error": "No GOOGLE_API_KEY configured"}, status_code=500)
-
-    from pptx_llm_generator import generate_ic_deck_llm
-    gemini_model = record.get("gemini_model") or _MODEL_DEFAULT
-    if gemini_model not in (_MODEL_FLASH, _MODEL_PRO):
-        gemini_model = _MODEL_DEFAULT
-    try:
-        pptx_bytes = generate_ic_deck_llm(findings_dict, gemini_model)
-    except Exception as e:
-        import traceback; traceback.print_exc()
-        return JSONResponse({"error": f"Deck generation failed: {e}"}, status_code=500)
-
-    safe_name = (record.get("name") or "IC_Deck").encode("ascii", "ignore").decode().replace(" ", "_").replace("/", "-").strip("_")[:60] or "IC_Deck"
-    return Response(
-        content=pptx_bytes,
-        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        headers={"Content-Disposition": f'attachment; filename="{safe_name}.pptx"'},
-    )
 
 
 @app.post("/cases/{case_id}/delete")
@@ -288,7 +272,10 @@ async def case_delete(case_id: str):
 @app.post("/analyze/json")
 async def analyze_json(req: AnalysisRequest):
     """JSON API endpoint — returns findings object + report_md."""
-    findings = orchestrate(req)
+    try:
+        findings = Analyst.from_env().analyze(req)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
     return JSONResponse(content=json.loads(findings.model_dump_json()))
 
 
@@ -361,30 +348,6 @@ def _result_context_from_dict(findings_dict: dict, report_html: str, *,
     }
 
 
-# ── Markdown → HTML (minimal, no external deps) ──────────────────────────────
-
 def _md_to_html(md: str) -> str:
-    """Very lightweight Markdown → HTML using markdown-it-py if available, else pre-wrap."""
-    try:
-        from markdown_it import MarkdownIt
-        mdi = MarkdownIt()
-        return mdi.render(md)
-    except ImportError:
-        pass
-    try:
-        import markdown
-        return markdown.markdown(md, extensions=["tables", "fenced_code"])
-    except ImportError:
-        pass
-    # Bare fallback: wrap in <pre> with minimal heading conversion
-    lines = []
-    for line in md.splitlines():
-        if line.startswith("### "):
-            lines.append(f"<h3>{line[4:]}</h3>")
-        elif line.startswith("## "):
-            lines.append(f"<h2>{line[3:]}</h2>")
-        elif line.startswith("# "):
-            lines.append(f"<h1>{line[2:]}</h1>")
-        else:
-            lines.append(line + "<br>")
-    return "\n".join(lines)
+    from markdown_it import MarkdownIt
+    return MarkdownIt().render(md)

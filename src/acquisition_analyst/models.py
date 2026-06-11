@@ -1,3 +1,5 @@
+"""Public request/response types."""
+
 from __future__ import annotations
 from typing import Optional
 from pydantic import BaseModel, Field
@@ -47,7 +49,7 @@ class AnalysisRequest(BaseModel):
     series: Optional[MetricSeries] = None
 
 
-# ── Findings object (structured output of the deterministic engine) ───────────
+# ── Findings (structured output of the deterministic engine) ──────────────────
 
 class BenchmarkBand(BaseModel):
     median: float
@@ -101,7 +103,7 @@ class BenchmarkCohort(BaseModel):
 
 
 class DDQuestion(BaseModel):
-    category: str   # Retention | Growth | Unit Economics | Efficiency | Competitive | People & Operations | Legal & Risk
+    category: str   # Retention | Growth | Unit Economics | Efficiency | Competitive | People & Operations | Legal & Risk | Data Integrity
     priority: str   # critical | high | medium
     question: str
     evidence: str
@@ -112,14 +114,14 @@ class DDQuestion(BaseModel):
     answer: Optional[str] = None
 
 
-class FindingsObject(BaseModel):
+class Findings(BaseModel):
     deal_context: dict
     validation: ValidationResult
-    benchmark_cohort: BenchmarkCohort
-    graded_metrics: dict[str, GradedMetric]
-    rule_of_40: GradedMetric
-    risk_flags: list[str]
-    scorecard: Scorecard
-    recommendation: RecommendationResult
+    benchmark_cohort: Optional[BenchmarkCohort] = None
+    graded_metrics: dict[str, GradedMetric] = {}
+    rule_of_40: Optional[GradedMetric] = None
+    risk_flags: list[str] = []
+    scorecard: Optional[Scorecard] = None
+    recommendation: Optional[RecommendationResult] = None
     report_md: Optional[str] = None
     dd_questions: Optional[list[DDQuestion]] = None

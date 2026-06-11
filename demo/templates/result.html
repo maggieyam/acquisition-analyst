@@ -611,12 +611,6 @@
   <div style="font-size:15px;font-weight:600;color:#1d4ed8;">Re-running analysis…</div>
   <div style="font-size:12px;color:#6b7280;">Incorporating your DD findings into the report</div>
 </div>
-<div id="exportOverlay" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,0.92);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
-  <div id="exportSpinner" style="width:40px;height:40px;border:4px solid #bbf7d0;border-top-color:#15803d;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
-  <div id="exportMsg" style="font-size:15px;font-weight:600;color:#15803d;">Generating IC Deck…</div>
-  <div id="exportSub" style="font-size:12px;color:#6b7280;">LLM is designing your PowerPoint — this takes ~20 seconds</div>
-  <button id="exportDismiss" onclick="document.getElementById('exportOverlay').style.display='none';document.getElementById('exportPptxBtn').disabled=false;" style="display:none;margin-top:8px;padding:6px 18px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:6px;cursor:pointer;font-size:13px;">Dismiss</button>
-</div>
 <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
 
 {# ── Jinja2 helpers ────────────────────────────────────────────────────────── #}
@@ -1098,9 +1092,6 @@
   <div class="actions-row">
     <a href="/" class="btn btn-primary">← New Analysis</a>
     <a href="/cases" class="btn btn-secondary">My Cases</a>
-    {% if case_id %}
-    <button id="exportPptxBtn" class="btn btn-secondary" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;" onclick="exportPptx()">⬇ Export IC Deck (.pptx)</button>
-    {% endif %}
     <button class="btn btn-secondary" onclick="downloadJson()">Download Findings (.json)</button>
   </div>
 
@@ -1116,53 +1107,6 @@
   const llmModel     = {{ llm_model | tojson }};
   const caseId       = {{ case_id | tojson }};
   const assessment   = {{ assessment | tojson }};
-
-  async function exportPptx() {
-    const overlay  = document.getElementById('exportOverlay');
-    const spinner  = document.getElementById('exportSpinner');
-    const msg      = document.getElementById('exportMsg');
-    const sub      = document.getElementById('exportSub');
-    const dismiss  = document.getElementById('exportDismiss');
-    const btn      = document.getElementById('exportPptxBtn');
-
-    // Reset to loading state
-    spinner.style.display = 'block';
-    msg.style.color = '#15803d';
-    msg.textContent = 'Generating IC Deck…';
-    sub.textContent = 'LLM is designing your PowerPoint — this takes ~20 seconds';
-    dismiss.style.display = 'none';
-    overlay.style.display = 'flex';
-    btn.disabled = true;
-
-    // Yield to the browser so the overlay paints before the fetch starts
-    await new Promise(r => requestAnimationFrame(r));
-
-    try {
-      const resp = await fetch(`/cases/{{ case_id }}/export/pptx`);
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ error: resp.statusText }));
-        throw new Error(err.error || resp.statusText);
-      }
-      const blob  = await resp.blob();
-      const url   = URL.createObjectURL(blob);
-      const a     = document.createElement('a');
-      const cd    = resp.headers.get('Content-Disposition') || '';
-      const match = cd.match(/filename="([^"]+)"/);
-      a.href = url;
-      a.download = match ? match[1] : 'IC_Deck.pptx';
-      a.click();
-      URL.revokeObjectURL(url);
-      overlay.style.display = 'none';
-      btn.innerHTML = '✓ Downloaded';
-      setTimeout(() => { btn.innerHTML = '⬇ Export IC Deck (.pptx)'; btn.disabled = false; }, 3000);
-    } catch (err) {
-      spinner.style.display = 'none';
-      msg.style.color = '#991b1b';
-      msg.textContent = 'Export failed';
-      sub.textContent = err.message;
-      dismiss.style.display = 'inline-block';
-    }
-  }
 
   function downloadJson() {
     const blob = new Blob([findingsJson], { type: 'application/json' });

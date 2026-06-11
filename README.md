@@ -1,48 +1,102 @@
-# M&A DD Metric Analyzer
+# acquisition-analyst
 
-A buy-side due diligence tool that takes a target's SaaS metrics, benchmarks them against cohort data, grades every metric deterministically, and produces a structured DD report.
+A buy-side M&A due diligence SDK for SaaS targets. Takes a target's metrics, benchmarks them against cohort data, grades every metric deterministically, and produces a structured findings object — optionally enriched with an LLM-written IC memo and due diligence questions.
+
+**The product is the SDK** (`src/acquisition_analyst/`). The web app in `demo/` is a reference consumer.
+
+## Design principles
+
+- **All numbers are computed by code.** Grades, bands, scorecard, and recommendation are deterministic and reproducible. The LLM only writes prose and questions, grounded in the findings object — it cannot invent figures.
+- **No silent degradation.** LLM failures raise typed exceptions (`RateLimited`, `LLMUnavailable`). Absence of API keys is an explicit, documented offline mode.
+- **Bring your own benchmarks.** The packaged cohort dataset is the default; supply a `BenchmarkSet` to use your own.
+
+## Install
+
+```bash
+pip install -e .            # SDK only
+pip install -e ".[demo]"    # SDK + demo web app
+pip install -e ".[dev]"     # + pytest
+```
+
+## SDK usage
+
+```python
+from acquisition_analyst import Analyst, AnalysisRequest
+
+analyst = Analyst(api_keys=["AIza..."])        # explicit config
+# or: analyst = Analyst.from_env()             # reads GOOGLE_API_KEY, GOOGLE_API_KEY_2, …
+# or: analyst = Analyst()                      # offline — deterministic engine only
+
+findings = analyst.analyze(AnalysisRequest(**payload))
+
+findings.scorecard.composite        # e.g. 3.42
+findings.recommendation.assessment  # buy | conditional_buy | hold | pass
+findings.risk_flags                 # rule-based risk list
+findings.dd_questions               # LLM-generated (None in offline mode)
+```
+
+Additional capabilities:
+
+```python
+memo      = analyst.write_memo(findings)                       # LLM IC memo (markdown)
+questions = analyst.generate_dd_questions(findings)            # prioritized DD question list
+resolved  = analyst.review_dd_questions(open_questions, findings)
+
+# Re-run with answered DD questions carried forward (writes the IC memo):
+findings = analyst.analyze(request, existing_dd_questions=questions)
+
+# Deterministic memo, no LLM required:
+from acquisition_analyst import template_memo
+md = template_memo(findings)
+```
+
+Custom benchmark data:
+
+```python
+from acquisition_analyst import Analyst, BenchmarkSet
+
+bs = BenchmarkSet.from_file("my_benchmarks.json")  # must include "_widened|default"
+analyst = Analyst(api_keys=[...], benchmarks=bs)
+```
+
+### Error handling
+
+```python
+from acquisition_analyst import ConfigError, RateLimited, LLMUnavailable
+
+try:
+    findings = analyst.analyze(request)
+except RateLimited:      # all keys hit 429
+    ...
+except LLMUnavailable:   # model overloaded (503) — retry later
+    ...
+except ConfigError:      # LLM feature used with no keys
+    ...
+```
+
+Multiple API keys (`GOOGLE_API_KEY`, `GOOGLE_API_KEY_2`, …) are rotated automatically on 429/503.
 
 ## Architecture
 
 ```
-orchestrator (plain code, fixed order)
-  → tool 1: validate completeness        (deterministic)
-  → tool 2: benchmark lookup             (deterministic)
-  → tool 3: grade + scorecard + recommendation  (deterministic)
-  → report agent (LLM): synthesize findings into the report
+src/acquisition_analyst/
+├── client.py        # Analyst facade — the full pipeline reads top-to-bottom in analyze()
+├── models.py        # AnalysisRequest, Findings, and friends (Pydantic)
+├── scoring/         # deterministic core: validation → benchmark lookup → grading
+├── llm/             # gateway (keys/rotation/errors), IC memo, DD questions
+└── data/            # packaged benchmark cohorts
 ```
 
-All numbers (grades, bands, scorecard, recommendation) are computed by code and are fully reproducible. The LLM only writes the prose report, grounded in the findings object — it cannot invent figures.
+Pipeline: **validate → benchmark lookup (with cohort widening) → grade + scorecard + recommendation → LLM enrichment** (DD questions; IC memo on re-runs).
 
-## Quickstart
+## Demo web app
 
 ```bash
-pip install -r requirements.txt
-uvicorn app:app --reload
+pip install -e ".[demo]"
+uvicorn demo.app:app --reload
 ```
 
-Then open [http://localhost:8000](http://localhost:8000). A sample target (vertical SaaS, ~$25M ARR, growth_equity) is pre-filled.
-
-## LLM report (optional)
-
-Set `ANTHROPIC_API_KEY` to enable the LLM-written report. Without it, a structured template report is generated from the findings object — all figures remain deterministic either way.
-
-```bash
-export ANTHROPIC_API_KEY=sk-ant-...
-uvicorn app:app --reload
-```
-
-## JSON API
-
-```bash
-# Run analysis via API
-curl -X POST http://localhost:8000/analyze/json \
-  -H "Content-Type: application/json" \
-  -d @sample.json
-
-# Get the pre-filled sample payload
-curl http://localhost:8000/sample
-```
+Open [http://localhost:8000](http://localhost:8000). A sample target (vertical SaaS, ~$25M ARR, growth_equity) is pre-filled. Set `GOOGLE_API_KEY` (e.g. in `.env`) to enable LLM features; without it the deterministic engine and template memo still work.
 
 ## Inputs
 
@@ -64,9 +118,9 @@ curl http://localhost:8000/sample
 `rule_of_40` is derived (`arr_growth + ebitda_margin`).
 
 ### DD-depth (optional)
+- `company_description` — free-text context used by the memo writer
 - `customer_concentration_top10_pct` — triggers concentration risk flag above 40%
-- `series` — multi-period arrays (oldest → most recent) for trend analysis:
-  `arr_growth`, `nrr`, `grr`, `cac_payback_months`, `ltv_cac`, `magic_number`, `burn_multiple`, `gross_margin`, `ebitda_margin`
+- `series` — multi-period arrays (oldest → most recent) for trend analysis
 
 ## Grading logic
 
@@ -81,26 +135,13 @@ Each metric is graded against cohort benchmarks (Q1/median/Q3) with direction (`
 
 Composite = Σ(points × weight) / Σ(weights), using buyer-segment weight profiles.
 
-## Cohort lookup & widening
+**Cohort lookup:** key `{stage}|{vertical}|{size_band}`. If no exact match, widens to `_widened|{vertical}`, then `_widened|default`. Confidence: `high → medium → low`.
 
-Lookup key: `{stage}|{vertical}|{size_band}` (e.g. `growth|vertical_saas|25-50M`).
+## Testing
 
-If no exact match: widens to `_widened|{vertical}` (drops stage/size), then to `_widened|default`. Confidence: `high → medium → low`.
+```bash
+pip install -e ".[dev]"
+pytest
+```
 
-## Benchmark data
-
-Seed cohorts in `data/benchmarks.json`. Add cohorts by adding a new key with per-metric `{median, q1, q3, direction}`. Valuation multiples for solve-for-price live in `_valuation_multiples`.
-
-## Output
-
-The `/analyze/json` endpoint returns a `FindingsObject` with:
-- `validation` — completeness + sanity warnings
-- `benchmark_cohort` — cohort used + confidence
-- `graded_metrics` — per metric: value, benchmark breakpoints, band, points, trend, series
-- `rule_of_40` — derived metric, same structure
-- `risk_flags` — rule-based list
-- `scorecard` — composite score, per-family breakdown, band
-- `recommendation` — assessment, rationale, conditions, solve-for-price (if price=null)
-- `report_md` — the full DD report in Markdown
-
-Re-running with the same input produces identical `graded_metrics`, `scorecard`, and `recommendation` every time.
+The deterministic core (validation, benchmarks, grading, offline pipeline) is fully covered; re-running with the same input always produces identical grades, scorecard, and recommendation.
