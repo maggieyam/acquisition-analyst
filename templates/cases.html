@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Cases — M&amp;A DD</title>
+  <style>
+    :root {
+      --navy:       #0c1a2e;
+      --navy-mid:   #0f2540;
+      --border:     #dde3ed;
+      --border-lt:  #eef1f6;
+      --bg:         #f2f5f9;
+      --card:       #ffffff;
+      --text:       #0e1620;
+      --text-2:     #374151;
+      --text-3:     #6b7280;
+      --muted:      #9ca3af;
+      --green:      #16a34a;
+      --green-lt:   #dcfce7;
+      --green-bd:   #86efac;
+      --amber:      #d97706;
+      --amber-lt:   #fef3c7;
+      --amber-bd:   #fde68a;
+      --red:        #dc2626;
+      --red-lt:     #fee2e2;
+      --red-bd:     #fca5a5;
+      --blue-lt:    #dbeafe;
+      --blue-bd:    #93c5fd;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg); color: var(--text); font-size: 13px;
+      line-height: 1.5; -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Nav ── */
+    .nav {
+      background: var(--navy); padding: 0 32px; height: 50px;
+      display: flex; align-items: center; gap: 20px;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.05);
+    }
+    .nav-brand { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #fff; }
+    .nav-sep   { width: 1px; height: 16px; background: rgba(255,255,255,0.12); }
+    .nav-sub   { font-size: 12px; color: #7a95b4; }
+    .nav-btn {
+      margin-left: auto; font-size: 12px; color: #7a95b4; text-decoration: none;
+      border: 1px solid rgba(255,255,255,0.10); padding: 5px 14px;
+      border-radius: 4px; transition: all 0.15s;
+    }
+    .nav-btn:hover { color: #fff; border-color: rgba(255,255,255,0.25); }
+
+    /* ── Body ── */
+    .page-body { max-width: 1080px; margin: 0 auto; padding: 32px 24px 80px; }
+    .page-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 22px; flex-wrap: wrap; gap: 12px;
+    }
+    .page-head h1 { font-size: 18px; font-weight: 700; }
+    .page-head .count { font-size: 13px; color: var(--muted); margin-left: 8px; font-weight: 400; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 18px; border-radius: 5px;
+      font-size: 12.5px; font-weight: 600; cursor: pointer;
+      text-decoration: none; border: 1px solid transparent; transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: #1d4ed8; color: #fff; }
+    .btn-danger  { background: var(--red-lt); color: var(--red); border-color: var(--red-bd); font-size: 11.5px; padding: 5px 11px; }
+
+    /* ── Card & Table ── */
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+
+    .cases-table { width: 100%; border-collapse: collapse; }
+    .cases-table thead tr { border-bottom: 2px solid var(--border); background: #f8fafc; }
+    .cases-table thead th {
+      padding: 10px 16px; text-align: left;
+      font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.09em; color: var(--muted); white-space: nowrap;
+    }
+    .cases-table thead th.r { text-align: right; }
+    .cases-table tbody tr { border-bottom: 1px solid var(--border-lt); transition: background 0.1s; }
+    .cases-table tbody tr:last-child { border-bottom: none; }
+    .cases-table tbody tr:hover { background: #fafbfd; }
+    .cases-table tbody td { padding: 12px 16px; vertical-align: middle; }
+    .cases-table tbody td.r { text-align: right; }
+
+    .case-name {
+      font-weight: 600; font-size: 13.5px; color: #1d4ed8;
+      text-decoration: none; display: block; margin-bottom: 2px;
+    }
+    .case-name:hover { text-decoration: underline; }
+    .case-meta { font-size: 11px; color: var(--muted); }
+
+    .date-val { font-size: 12.5px; color: var(--text-2); }
+    .date-time { font-size: 11px; color: var(--muted); }
+
+    .arr-val { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .score-val { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+    /* Verdict badge */
+    .vbadge {
+      display: inline-block; font-size: 10px; font-weight: 800;
+      padding: 3px 9px; border-radius: 3px; letter-spacing: 0.05em;
+      text-transform: uppercase; white-space: nowrap;
+    }
+    .vbadge.buy             { background: var(--green-lt); color: #15803d; border: 1px solid var(--green-bd); }
+    .vbadge.conditional_buy { background: var(--amber-lt); color: #92400e; border: 1px solid var(--amber-bd); }
+    .vbadge.hold            { background: var(--blue-lt);  color: #1e40af; border: 1px solid var(--blue-bd); }
+    .vbadge.pass            { background: var(--red-lt);   color: #991b1b; border: 1px solid var(--red-bd); }
+    .vbadge.unknown         { background: #f3f4f6; color: var(--muted); border: 1px solid #e5e7eb; }
+
+    /* Status badge */
+    .sbadge {
+      display: inline-block; font-size: 10px; font-weight: 700;
+      padding: 2px 8px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .sbadge-complete { background: #dcfce7; color: #15803d; }
+    .sbadge-draft    { background: #f3f4f6; color: #6b7280; }
+
+    /* Actions cell */
+    .actions-cell { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+
+    /* Empty state */
+    .empty-state {
+      padding: 64px 32px; text-align: center;
+    }
+    .empty-icon   { font-size: 36px; margin-bottom: 14px; }
+    .empty-title  { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+    .empty-sub    { font-size: 13px; color: var(--muted); margin-bottom: 22px; }
+  </style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-brand">M&amp;A DD</span>
+  <div class="nav-sep"></div>
+  <span class="nav-sub">Saved Cases</span>
+  <a href="/" class="nav-btn">+ New Analysis</a>
+</nav>
+
+<div class="page-body">
+  <div class="page-head">
+    <h1>My Cases <span class="count">{{ cases | length }} saved</span></h1>
+    <a href="/" class="btn btn-primary">+ New Analysis</a>
+  </div>
+
+  <div class="card">
+    {% if cases %}
+    <table class="cases-table">
+      <thead>
+        <tr>
+          <th>Case</th>
+          <th>Date</th>
+          <th>Status</th>
+          <th>Verdict</th>
+          <th class="r">ARR</th>
+          <th class="r">Score</th>
+          <th class="r">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in cases %}
+        <tr>
+          <td>
+            {% if c.status == "complete" %}
+            <a href="/cases/{{ c.id }}" class="case-name">{{ c.name }}</a>
+            {% else %}
+            <span class="case-name" style="color:var(--text);cursor:default;">{{ c.name }}</span>
+            {% endif %}
+            <div class="case-meta">
+              {{ (c.vertical or "") | replace("_", " ") | title }}
+              {% if c.stage %} · {{ c.stage | title }}{% endif %}
+            </div>
+          </td>
+          <td>
+            <div class="date-val">{{ c.created_at[:10] }}</div>
+            <div class="date-time">{{ c.created_at[11:16] }} UTC</div>
+          </td>
+          <td>
+            <span class="sbadge sbadge-{{ c.status }}">{{ c.status }}</span>
+          </td>
+          <td>
+            {% if c.status == "complete" %}
+            {% set a = c.assessment %}
+            <span class="vbadge {{ a or 'unknown' }}">{{ (a or "—") | replace("_", " ") | upper }}</span>
+            {% else %}
+            <span style="color:var(--muted);font-size:12px;">—</span>
+            {% endif %}
+          </td>
+          <td class="r">
+            <span class="arr-val">{% if c.arr %}${{ c.arr }}M{% else %}—{% endif %}</span>
+          </td>
+          <td class="r">
+            {% if c.status == "complete" %}
+            <span class="score-val">{{ "%.2f"|format(c.composite) if c.composite is not none else "—" }}</span>
+            {% if c.band %}<div style="font-size:10px;color:var(--muted);">{{ c.band }}</div>{% endif %}
+            {% else %}
+            <span style="color:var(--muted);">—</span>
+            {% endif %}
+          </td>
+          <td class="r">
+            <div class="actions-cell">
+              {% if c.status == "complete" %}
+              <a href="/cases/{{ c.id }}" class="btn" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;font-size:11.5px;padding:5px 11px;">View</a>
+              {% endif %}
+              <button class="btn" style="background:#f0fdf4;color:#15803d;border:1px solid #86efac;font-size:11.5px;padding:5px 11px;" onclick="loadCase('{{ c.id }}')">Load →</button>
+              <form method="post" action="/cases/{{ c.id }}/delete" onsubmit="return confirm('Delete case \'{{ c.name }}\'?')">
+                <button type="submit" class="btn btn-danger">Delete</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">📁</div>
+      <div class="empty-title">No saved cases yet</div>
+      <div class="empty-sub">Run an analysis and save it to build your deal library.</div>
+      <a href="/" class="btn btn-primary">+ New Analysis</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  async function loadCase(caseId) {
+    try {
+      const resp = await fetch(`/cases/${caseId}/data`);
+      if (!resp.ok) throw new Error('Case not found');
+      const { request, gemini_model } = await resp.json();
+      localStorage.setItem('lastPayload', JSON.stringify(request));
+      if (gemini_model) localStorage.setItem('lastGeminiModel', gemini_model);
+      window.location.href = '/';
+    } catch (err) {
+      alert('Failed to load case: ' + err.message);
+    }
+  }
+</script>
+</body>
+</html>

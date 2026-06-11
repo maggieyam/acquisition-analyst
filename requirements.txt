@@ -1,0 +1,10 @@
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+pydantic>=2.7.0
+jinja2>=3.1.4
+python-multipart>=0.0.9
+google-genai>=1.0.0
+markdown-it-py>=3.0.0
+python-dotenv>=1.0.0
+python-pptx>=0.6.23
+# Optional: pip install weasyprint  (PDF export)

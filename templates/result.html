@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% if case_name %}{{ case_name }}{% else %}DD Report{% endif %} — M&amp;A DD</title>
+  <style>
+    /* ── Design Tokens ────────────────────────────────────────────────── */
+    :root {
+      --navy:       #0c1a2e;
+      --navy-mid:   #0f2540;
+      --navy-lt:    #1a3352;
+      --blue:       #1d4ed8;
+      --border:     #dde3ed;
+      --border-lt:  #eef1f6;
+      --bg:         #f2f5f9;
+      --card:       #ffffff;
+      --text:       #0e1620;
+      --text-2:     #374151;
+      --text-3:     #6b7280;
+      --muted:      #9ca3af;
+      --green:      #16a34a;
+      --green-lt:   #dcfce7;
+      --green-bd:   #86efac;
+      --amber:      #d97706;
+      --amber-lt:   #fef3c7;
+      --amber-bd:   #fde68a;
+      --red:        #dc2626;
+      --red-lt:     #fee2e2;
+      --red-bd:     #fca5a5;
+      --blue-lt:    #dbeafe;
+      --blue-bd:    #93c5fd;
+    }
+
+    /* ── Reset ────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Navigation ───────────────────────────────────────────────────── */
+    .nav {
+      background: var(--navy);
+      padding: 0 32px;
+      height: 50px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.05);
+    }
+    .nav-brand {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #ffffff;
+    }
+    .nav-sep { width: 1px; height: 16px; background: rgba(255,255,255,0.12); }
+    .nav-subtitle { font-size: 12px; color: #7a95b4; }
+    .nav-back {
+      margin-left: auto;
+      font-size: 12px;
+      color: #7a95b4;
+      text-decoration: none;
+      border: 1px solid rgba(255,255,255,0.10);
+      padding: 5px 14px;
+      border-radius: 4px;
+      transition: all 0.15s;
+    }
+    .nav-back:hover { color: #fff; border-color: rgba(255,255,255,0.25); }
+
+    /* ── Deal Strip ───────────────────────────────────────────────────── */
+    .deal-strip {
+      background: var(--navy-mid);
+      padding: 8px 32px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .deal-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.05);
+      padding: 3px 10px 3px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      color: #c4d8ee;
+    }
+    .deal-pill .lbl {
+      color: #5e7a99;
+      font-size: 9.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-right: 1px;
+    }
+    .deal-pill .val { font-weight: 600; }
+    .deal-strip .deal-separator { color: rgba(255,255,255,0.15); font-size: 10px; }
+    .deal-strip .deal-meta { margin-left: auto; font-size: 11px; color: #445d7a; }
+
+    /* ── Verdict Hero ─────────────────────────────────────────────────── */
+    .verdict-hero {
+      padding: 24px 32px;
+      display: flex;
+      align-items: flex-start;
+      gap: 28px;
+      border-bottom: 1px solid var(--border);
+    }
+    .verdict-hero.buy            { background: #f0fdf4; border-left: 5px solid #22c55e; }
+    .verdict-hero.conditional_buy{ background: #fffbeb; border-left: 5px solid #f59e0b; }
+    .verdict-hero.hold           { background: #eff6ff; border-left: 5px solid #3b82f6; }
+    .verdict-hero.pass           { background: #fef2f2; border-left: 5px solid #ef4444; }
+
+    .verdict-badge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 130px;
+      flex-shrink: 0;
+    }
+    .verdict-label {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      line-height: 1.1;
+      text-align: center;
+    }
+    .verdict-hero.buy             .verdict-label { color: #15803d; }
+    .verdict-hero.conditional_buy .verdict-label { color: #b45309; }
+    .verdict-hero.hold            .verdict-label { color: #1d4ed8; }
+    .verdict-hero.pass            .verdict-label { color: #b91c1c; }
+    .verdict-score-row {
+      margin-top: 6px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-3);
+    }
+    .verdict-score-row .score { font-size: 16px; font-weight: 800; color: var(--text); }
+    .verdict-sep { width: 1px; background: var(--border); align-self: stretch; flex-shrink: 0; }
+    .verdict-body { flex: 1; }
+    .verdict-rationale { font-size: 13px; color: var(--text-2); line-height: 1.65; margin-bottom: 0; }
+    .ic-status-bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 32px; border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .ic-status-bar.initial-screen { background: #fefce8; }
+    .ic-status-bar.preliminary    { background: #fff7ed; }
+    .ic-status-bar.ic-ready       { background: #f0fdf4; }
+    .ic-stage-pill {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; padding: 3px 10px; border-radius: 20px;
+    }
+    .initial-screen .ic-stage-pill { background: #fef08a; color: #854d0e; }
+    .preliminary    .ic-stage-pill { background: #fed7aa; color: #9a3412; }
+    .ic-ready       .ic-stage-pill { background: #bbf7d0; color: #14532d; }
+    .ic-status-detail { color: var(--text-3); }
+    .ic-status-bar.deal-breaker { background: #fef2f2; }
+    .deal-breaker .ic-stage-pill { background: #fca5a5; color: #7f1d1d; }
+    .ddq-issues-section { margin-bottom: 18px; }
+    .ddq-issues-label {
+      font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .10em; padding: 0 0 8px; margin-bottom: 10px;
+      border-bottom: 2px solid #fca5a5; color: #b91c1c;
+    }
+    .verdict-conditions-list { margin-top: 12px; }
+    .verdict-conditions-list h4 {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.09em; color: var(--text-3); margin-bottom: 8px;
+    }
+    .cond-item {
+      display: flex; gap: 8px; font-size: 12.5px; color: var(--text-2);
+      margin-bottom: 6px; line-height: 1.45;
+    }
+    .cond-dot { color: var(--amber); font-size: 9px; margin-top: 3px; flex-shrink: 0; }
+
+    /* ── Page Body ────────────────────────────────────────────────────── */
+    .page-body { max-width: 1240px; margin: 0 auto; padding: 24px 24px 80px; }
+
+    /* ── Cards ────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    .card-head {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border-lt);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .card-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+    }
+    .card-body { padding: 16px 20px; }
+
+    /* ── Section Gap ──────────────────────────────────────────────────── */
+    .section { margin-bottom: 18px; }
+
+    /* ── Cohort Bar ───────────────────────────────────────────────────── */
+    .cohort-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-size: 11.5px;
+      margin-bottom: 18px;
+    }
+    .cohort-bar .lbl { color: var(--muted); }
+    .cohort-bar .val { font-weight: 600; color: var(--text); font-family: "SF Mono", "Fira Code", Consolas, monospace; font-size: 11px; }
+    .cohort-fallback { font-size: 11px; color: var(--amber); margin-left: auto; }
+
+    /* ── Summary Grid ─────────────────────────────────────────────────── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    @media (max-width: 960px) { .summary-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 620px) { .summary-grid { grid-template-columns: 1fr; } }
+
+    /* Family scorecard rows */
+    .family-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .family-row:last-child { margin-bottom: 0; }
+    .family-name {
+      width: 115px;
+      flex-shrink: 0;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text);
+      text-transform: capitalize;
+    }
+    .family-track {
+      flex: 1;
+      height: 5px;
+      background: #e5e7eb;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .family-fill {
+      height: 100%;
+      border-radius: 3px;
+      background: linear-gradient(90deg, #3b82f6, #22c55e);
+    }
+    .family-score { width: 30px; text-align: right; font-size: 12px; font-weight: 700; color: var(--text); }
+
+    /* ── Badges ───────────────────────────────────────────────────────── */
+    .badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }
+    .badge-strong, .badge-strong { background: var(--green-lt); color: #166534; border-color: var(--green-bd); }
+    .badge-above  { background: var(--blue-lt);  color: #1e40af; border-color: var(--blue-bd); }
+    .badge-below  { background: var(--amber-lt); color: #92400e; border-color: var(--amber-bd); }
+    .badge-weak   { background: var(--red-lt);   color: #991b1b; border-color: var(--red-bd); }
+    .badge-above-average { background: var(--blue-lt);  color: #1e40af; border-color: var(--blue-bd); }
+    .badge-below-average { background: var(--amber-lt); color: #92400e; border-color: var(--amber-bd); }
+
+    /* Recommendation card */
+    .rec-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .rec-pill {
+      font-size: 11px; font-weight: 800; letter-spacing: 0.05em;
+      padding: 3px 11px; border-radius: 4px;
+    }
+    .rec-pill.buy             { background: var(--green-lt); color: #15803d; }
+    .rec-pill.conditional_buy { background: var(--amber-lt); color: #92400e; }
+    .rec-pill.hold            { background: var(--blue-lt);  color: #1e40af; }
+    .rec-pill.pass            { background: var(--red-lt);   color: #991b1b; }
+    .rec-rationale { font-size: 12px; color: var(--text-2); line-height: 1.6; }
+    .rec-conds { margin-top: 12px; }
+    .rec-conds .conds-title {
+      font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.09em; color: var(--muted); margin-bottom: 7px;
+    }
+    .rec-cond-item {
+      display: flex; gap: 7px; font-size: 11.5px; color: var(--text-2);
+      margin-bottom: 6px; line-height: 1.4;
+    }
+    .rec-cond-dot { color: var(--amber); font-size: 8px; margin-top: 3px; flex-shrink: 0; }
+
+    /* Valuation card */
+    .val-range {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .val-box {
+      text-align: center;
+      padding: 10px 8px;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+    }
+    .val-box.mid { background: #eff6ff; border-color: #93c5fd; }
+    .val-lbl { font-size: 9.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+    .val-num { font-size: 17px; font-weight: 800; color: var(--text); }
+    .val-unit { font-size: 11px; color: var(--text-3); }
+    .val-basis { font-size: 10.5px; color: var(--muted); line-height: 1.45; }
+
+    /* ── Risk Register ────────────────────────────────────────────────── */
+    .risk-list { display: flex; flex-direction: column; gap: 8px; }
+    .risk-item {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      background: #fffbeb;
+      border: 1px solid var(--amber-bd);
+      border-left: 3px solid var(--amber);
+      padding: 9px 14px;
+      border-radius: 5px;
+    }
+    .risk-icon { color: var(--amber); font-size: 12px; margin-top: 1px; flex-shrink: 0; }
+    .risk-text { font-size: 12.5px; color: #3d2800; line-height: 1.45; }
+
+    /* ── Metrics Table ────────────────────────────────────────────────── */
+    .metrics-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .metrics-table thead tr {
+      border-bottom: 2px solid var(--border);
+    }
+    .metrics-table thead th {
+      padding: 8px 14px;
+      text-align: left;
+      font-size: 9.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .metrics-table thead th.center { text-align: center; }
+    .metrics-table tbody tr { border-bottom: 1px solid var(--border-lt); }
+    .metrics-table tbody tr:last-child { border-bottom: none; }
+    .metrics-table tbody tr:hover { background: #fafbfd; }
+    .metrics-table tbody td { padding: 10px 14px; vertical-align: middle; }
+    .metrics-table tbody td.center { text-align: center; }
+
+    .metric-label { font-weight: 600; font-size: 13px; color: var(--text); }
+    .metric-sub { font-size: 10.5px; color: var(--muted); font-weight: 400; }
+    .metric-value { font-size: 14px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .metric-pts { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .pts-4 { color: #15803d; }
+    .pts-3 { color: #1d4ed8; }
+    .pts-2 { color: #b45309; }
+    .pts-1 { color: #b91c1c; }
+
+    .trend-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+    .trend-improving { background: #dcfce7; color: #15803d; }
+    .trend-declining { background: #fee2e2; color: #b91c1c; }
+    .trend-flat      { background: #f3f4f6; color: #6b7280; }
+
+    /* Benchmark bar */
+    .bm-wrap { display: inline-flex; flex-direction: column; gap: 3px; width: 160px; }
+    .bm-track {
+      position: relative;
+      height: 7px;
+      background: linear-gradient(90deg, #fca5a5 0%, #fde68a 35%, #86efac 65%, #4ade80 100%);
+      border-radius: 4px;
+    }
+    .bm-median-tick {
+      position: absolute;
+      top: -3px;
+      width: 2px;
+      height: 13px;
+      background: rgba(0,0,0,0.35);
+      transform: translateX(-50%);
+      border-radius: 1px;
+    }
+    .bm-dot {
+      position: absolute;
+      top: 50%;
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      border: 2.5px solid #fff;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+      z-index: 1;
+    }
+    .bm-dot.strong { background: #16a34a; }
+    .bm-dot.above  { background: #2563eb; }
+    .bm-dot.below  { background: #d97706; }
+    .bm-dot.weak   { background: #dc2626; }
+    .bm-axis {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .bm-axis .bm-median-lbl {
+      font-size: 9px; color: rgba(0,0,0,0.35);
+    }
+
+    /* ── Report Section ───────────────────────────────────────────────── */
+    .report-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 20px;
+    }
+    .report-badge.llm  { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .report-badge.tmpl { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
+
+    .report-body { line-height: 1.65; }
+    .report-body h1 { font-size: 16px; font-weight: 700; margin: 24px 0 10px; color: var(--text); line-height: 1.3; }
+    .report-body h2 {
+      font-size: 13.5px; font-weight: 700; margin: 22px 0 8px;
+      padding-bottom: 7px; border-bottom: 1px solid var(--border-lt); color: var(--text);
+    }
+    .report-body h3 { font-size: 12.5px; font-weight: 600; margin: 16px 0 5px; color: var(--text-2); }
+    .report-body p  { font-size: 13px; line-height: 1.70; margin-bottom: 10px; color: var(--text-2); }
+    .report-body ul, .report-body ol { padding-left: 20px; margin-bottom: 10px; }
+    .report-body li { font-size: 13px; line-height: 1.60; color: var(--text-2); margin-bottom: 4px; }
+    .report-body strong { font-weight: 600; color: var(--text); }
+    .report-body em { color: var(--text-3); font-style: italic; }
+    .report-body code {
+      font-family: "SF Mono", "Fira Code", Consolas, monospace;
+      font-size: 11.5px; background: #f0f2f6; padding: 2px 5px; border-radius: 3px;
+    }
+    .report-body pre { background: #f0f2f6; padding: 14px 16px; border-radius: 5px; overflow-x: auto; margin-bottom: 12px; }
+    .report-body pre code { background: none; padding: 0; font-size: 11px; }
+    .report-body blockquote {
+      border-left: 3px solid #d0d5de; padding: 8px 14px; margin: 12px 0;
+      background: #f8fafc; border-radius: 0 4px 4px 0;
+      font-size: 12.5px; color: var(--text-3);
+    }
+    .report-body table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 12px; }
+    .report-body th {
+      background: #f5f6f8; padding: 7px 10px; border: 1px solid #e2e5eb;
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.04em; color: var(--muted); text-align: left;
+    }
+    .report-body td { padding: 7px 10px; border: 1px solid #e2e5eb; }
+    .report-body tr:nth-child(even) td { background: #fafbfc; }
+    .report-body hr { border: none; border-top: 1px solid #e2e5eb; margin: 20px 0; }
+
+    /* ── Actions Row ──────────────────────────────────────────────────── */
+    .actions-row {
+      display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+      padding: 18px 0 0;
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 18px; border-radius: 5px;
+      font-size: 12.5px; font-weight: 600; cursor: pointer;
+      text-decoration: none; border: 1px solid transparent;
+      transition: opacity 0.15s, background 0.15s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: #1d4ed8; color: #fff; }
+    .btn-secondary { background: #fff; color: var(--text); border-color: var(--border); }
+
+    /* ── Confidence Badge ────────────────────────────────────────────── */
+    .conf-badge {
+      display: inline-block; font-size: 10px; font-weight: 700;
+      padding: 2px 7px; border-radius: 20px;
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .conf-high   { background: var(--green-lt); color: #166534; }
+    .conf-medium { background: var(--amber-lt); color: #92400e; }
+    .conf-low    { background: var(--red-lt);   color: #991b1b; }
+
+    /* ── LLM notice banner ───────────────────────────────────────────── */
+    .llm-notice {
+      display: flex; align-items: flex-start; gap: 10px;
+      background: #f0f9ff; border: 1px solid #bae6fd;
+      border-radius: 5px; padding: 10px 14px; margin-bottom: 16px;
+      font-size: 12px; color: #0c4a6e; line-height: 1.5;
+    }
+    .llm-notice .icon { flex-shrink: 0; font-size: 14px; }
+
+    /* ── Save bar ────────────────────────────────────────────────────── */
+    .save-bar {
+      display: flex; align-items: center; gap: 12px;
+      background: #f0f9ff; border: 1px solid #bae6fd;
+      border-radius: 6px; padding: 12px 18px; margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+    .save-bar-label { font-size: 12px; font-weight: 600; color: #0c4a6e; white-space: nowrap; }
+    .save-bar input[type=text] {
+      flex: 1; min-width: 200px; padding: 7px 10px;
+      border: 1px solid #7dd3fc; border-radius: 5px;
+      font-size: 13px; color: var(--text); background: #fff;
+    }
+    .save-bar input[type=text]:focus { outline: none; border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14,165,233,0.15); }
+    .btn-save {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 7px 16px; border-radius: 5px; font-size: 12.5px;
+      font-weight: 600; cursor: pointer; border: none;
+      background: #0ea5e9; color: #fff; transition: background 0.15s; white-space: nowrap;
+    }
+    .btn-save:hover { background: #0284c7; }
+    .btn-save:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    /* ── Saved-case banner ───────────────────────────────────────────── */
+    .saved-banner {
+      display: flex; align-items: center; gap: 12px;
+      background: #f0fdf4; border: 1px solid #86efac;
+      border-radius: 6px; padding: 10px 18px; margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+    .saved-banner-name { font-size: 13px; font-weight: 600; color: #15803d; flex: 1; }
+    .btn-rerun {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 6px 14px; border-radius: 5px; font-size: 12px;
+      font-weight: 600; cursor: pointer; border: 1px solid #86efac;
+      background: #dcfce7; color: #15803d; transition: background 0.15s; text-decoration: none;
+    }
+    .btn-rerun:hover { background: #bbf7d0; }
+
+    /* ── DD Questions ────────────────────────────────────────────────── */
+    .ddq-category { margin-bottom: 18px; }
+    .ddq-cat-label {
+      font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.10em; color: var(--muted);
+      padding: 0 0 8px; margin-bottom: 10px;
+      border-bottom: 1px solid var(--border-lt);
+    }
+    .ddq-cat-label.integrity {
+      color: #b45309;
+      border-bottom-color: #fde68a;
+    }
+    .ddq-item {
+      display: flex; gap: 12px; align-items: flex-start;
+      padding: 10px 0; border-bottom: 1px solid var(--border-lt);
+    }
+    .ddq-item:last-child { border-bottom: none; }
+    .ddq-priority {
+      display: inline-block; font-size: 9px; font-weight: 800;
+      padding: 2px 7px; border-radius: 3px; text-transform: uppercase;
+      letter-spacing: 0.05em; white-space: nowrap; margin-top: 2px; flex-shrink: 0;
+    }
+    .ddq-priority.critical { background: var(--red-lt);   color: #991b1b; border: 1px solid var(--red-bd); }
+    .ddq-priority.high     { background: var(--amber-lt); color: #92400e; border: 1px solid var(--amber-bd); }
+    .ddq-priority.medium   { background: #f3f4f6;         color: #374151; border: 1px solid #d1d5db; }
+    .ddq-body { flex: 1; }
+    .ddq-question { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.45; margin-bottom: 4px; }
+    .ddq-evidence { font-size: 11.5px; color: var(--text-3); margin-bottom: 5px; }
+    .ddq-materials { display: flex; flex-wrap: wrap; gap: 5px; }
+    .ddq-material-tag {
+      font-size: 10.5px; color: #1e40af; background: var(--blue-lt);
+      border: 1px solid var(--blue-bd); border-radius: 3px; padding: 2px 8px;
+    }
+    .btn-generate {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 18px; border-radius: 5px; font-size: 12.5px;
+      font-weight: 600; cursor: pointer; border: 1px solid #bfdbfe;
+      background: var(--blue-lt); color: #1d4ed8; transition: background 0.15s;
+    }
+    .btn-generate:hover { background: #bfdbfe; }
+    .btn-generate:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    /* ── Utility ──────────────────────────────────────────────────────── */
+    .text-muted { color: var(--muted); }
+    .mono { font-family: "SF Mono", "Fira Code", Consolas, monospace; }
+  </style>
+</head>
+<body>
+<div id="rerunOverlay" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,0.85);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
+  <div style="width:40px;height:40px;border:4px solid #e5e7eb;border-top-color:#1d4ed8;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+  <div style="font-size:15px;font-weight:600;color:#1d4ed8;">Re-running analysis…</div>
+  <div style="font-size:12px;color:#6b7280;">Incorporating your DD findings into the report</div>
+</div>
+<div id="exportOverlay" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,0.92);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
+  <div id="exportSpinner" style="width:40px;height:40px;border:4px solid #bbf7d0;border-top-color:#15803d;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+  <div id="exportMsg" style="font-size:15px;font-weight:600;color:#15803d;">Generating IC Deck…</div>
+  <div id="exportSub" style="font-size:12px;color:#6b7280;">LLM is designing your PowerPoint — this takes ~20 seconds</div>
+  <button id="exportDismiss" onclick="document.getElementById('exportOverlay').style.display='none';document.getElementById('exportPptxBtn').disabled=false;" style="display:none;margin-top:8px;padding:6px 18px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:6px;cursor:pointer;font-size:13px;">Dismiss</button>
+</div>
+<style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+
+{# ── Jinja2 helpers ────────────────────────────────────────────────────────── #}
+{% set LABELS = {
+  "arr_growth":         "ARR Growth",
+  "nrr":                "Net Revenue Retention",
+  "grr":                "Gross Revenue Retention",
+  "cac_payback_months": "CAC Payback",
+  "ltv_cac":            "LTV:CAC",
+  "magic_number":       "Magic Number",
+  "burn_multiple":      "Burn Multiple",
+  "gross_margin":       "Gross Margin",
+  "ebitda_margin":      "EBITDA Margin",
+  "rule_of_40":         "Rule of 40"
+} %}
+{% set UNITS = {
+  "arr_growth":         "%",
+  "nrr":                "%",
+  "grr":                "%",
+  "cac_payback_months": " mo",
+  "ltv_cac":            "×",
+  "magic_number":       "×",
+  "burn_multiple":      "×",
+  "gross_margin":       "%",
+  "ebitda_margin":      "%",
+  "rule_of_40":         ""
+} %}
+{% set FAMILIES = {
+  "arr_growth":         "growth",
+  "rule_of_40":         "growth",
+  "nrr":                "retention",
+  "grr":                "retention",
+  "burn_multiple":      "efficiency",
+  "ebitda_margin":      "efficiency",
+  "gross_margin":       "efficiency",
+  "ltv_cac":            "unit economics",
+  "cac_payback_months": "unit economics",
+  "magic_number":       "unit economics"
+} %}
+{% set METRIC_ORDER = ["arr_growth","nrr","grr","rule_of_40","gross_margin","ebitda_margin","burn_multiple","magic_number","ltv_cac","cac_payback_months"] %}
+{% set dc = findings.deal_context %}
+{% set sc = findings.scorecard %}
+{% set rec = findings.recommendation %}
+{% set cohort = findings.benchmark_cohort %}
+{% set gm = findings.graded_metrics %}
+
+<!-- ── Navigation ──────────────────────────────────────────────────────────── -->
+<nav class="nav">
+  <span class="nav-brand">M&amp;A DD</span>
+  <div class="nav-sep"></div>
+  <span class="nav-subtitle">{% if case_name %}{{ case_name }}{% else %}Due Diligence Analysis{% endif %}</span>
+  <a href="/cases" class="nav-back" style="margin-left:auto;">My Cases</a>
+  <a href="/" class="nav-back" style="margin-left:0;">← New Analysis</a>
+</nav>
+
+<!-- ── Deal Context Strip ──────────────────────────────────────────────────── -->
+<div class="deal-strip">
+  <div class="deal-pill">
+    <span class="lbl">Vertical</span>
+    <span class="val">{{ (dc.vertical or "—") | replace("_", " ") | title }}</span>
+  </div>
+  <div class="deal-pill">
+    <span class="lbl">Stage</span>
+    <span class="val">{{ (dc.stage or "—") | title }}</span>
+  </div>
+  <div class="deal-pill">
+    <span class="lbl">ARR</span>
+    <span class="val">${{ dc.arr_usd_m }}M</span>
+  </div>
+  <div class="deal-pill">
+    <span class="lbl">Size Band</span>
+    <span class="val">${{ dc.size_band }}</span>
+  </div>
+  <div class="deal-pill">
+    <span class="lbl">Buyer</span>
+    <span class="val">{{ (dc.buyer_segment or "—") | replace("_", " ") | title }}</span>
+  </div>
+  {% if dc.return_target %}
+  <div class="deal-pill">
+    <span class="lbl">Target IRR</span>
+    <span class="val">{{ dc.return_target | int }}%</span>
+  </div>
+  {% endif %}
+  {% if dc.hold_years %}
+  <div class="deal-pill">
+    <span class="lbl">Hold</span>
+    <span class="val">{{ dc.hold_years }} yr{{ "s" if dc.hold_years != 1 }}</span>
+  </div>
+  {% endif %}
+  {% if dc.thesis_tags %}
+  {% for tag in dc.thesis_tags %}
+  <div class="deal-pill">
+    <span class="lbl">Thesis</span>
+    <span class="val">{{ tag | replace("-", " ") | title }}</span>
+  </div>
+  {% endfor %}
+  {% endif %}
+</div>
+
+<!-- ── Verdict Hero ────────────────────────────────────────────────────────── -->
+{% if rec %}
+<div class="verdict-hero {{ assessment }}" id="verdictHero">
+  <div class="verdict-badge">
+    <!-- Locked: show score + band only -->
+    <div id="verdictLocked">
+      <div style="font-size:13px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;text-align:center;">Screen Score</div>
+      <div class="verdict-score-row" style="margin-top:4px;">
+        <span class="score">{{ "%.2f"|format(composite) }}</span> / 4.00
+        <br><span>{{ band }}</span>
+      </div>
+    </div>
+    <!-- Unlocked: show verdict -->
+    <div id="verdictUnlocked" style="display:none;">
+      <div class="verdict-label">{{ assessment | replace("_", " ") | upper }}</div>
+      <div class="verdict-score-row">
+        <span class="score">{{ "%.2f"|format(composite) }}</span> / 4.00
+        <br><span>{{ band }}</span>
+      </div>
+    </div>
+  </div>
+  <div class="verdict-sep"></div>
+  <div class="verdict-body">
+    <!-- Locked body -->
+    <div id="verdictBodyLocked" style="display:flex;align-items:center;gap:10px;">
+      <span style="font-size:20px;">🔒</span>
+      <span style="font-size:13px;color:var(--text-3);line-height:1.5;">Recommendation locked — resolve all <strong>critical</strong> DD questions to unlock the final verdict.</span>
+    </div>
+    <!-- Unlocked body -->
+    <div id="verdictBodyUnlocked" style="display:none;">
+      <p class="verdict-rationale">{{ rec.rationale }}</p>
+      {% if rec.conditions %}
+      <div class="verdict-conditions-list">
+        <h4>Conditions to Close</h4>
+        {% for cond in rec.conditions %}
+        <div class="cond-item">
+          <span class="cond-dot">●</span>
+          <span>{{ cond }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- DD Status bar -->
+<div class="ic-status-bar initial-screen" id="icStatusBar">
+  <span class="ic-stage-pill" id="icStagePill">Initial Screen</span>
+  <span class="ic-status-detail" id="icStatusDetail">Generate due diligence questions to begin formal review.</span>
+</div>
+
+<!-- ── Page Body ───────────────────────────────────────────────────────────── -->
+<div class="page-body">
+
+  <!-- Save / Saved-case banner -->
+  {% if case_id %}
+  <div class="saved-banner">
+    <span style="font-size:11px;color:#15803d;">✓ Saved</span>
+    <span class="saved-banner-name" id="savedBannerName">{{ case_name }}</span>
+    <input id="renameInput" type="text" value="{{ case_name }}" maxlength="120"
+           style="display:none;padding:4px 8px;border:1px solid #86efac;border-radius:4px;font-size:13px;font-weight:600;color:var(--text);width:280px;">
+    <button id="renameSaveBtn" onclick="renameSave()" style="display:none;padding:4px 12px;background:#15803d;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;">Save</button>
+    <button onclick="renameStart()" id="renameBtn" style="font-size:11px;color:#15803d;background:none;border:1px solid #86efac;border-radius:4px;padding:3px 10px;cursor:pointer;">Rename</button>
+    <a href="#" class="btn-rerun" onclick="rerunCase(event)">↩ Re-run</a>
+    <a href="/cases" style="font-size:12px;color:#15803d;text-decoration:none;padding:6px 0;">← All Cases</a>
+  </div>
+  {% else %}
+  <div class="save-bar">
+    <span class="save-bar-label">Save this case</span>
+    <input type="text" id="caseNameInput" placeholder="Give this deal a name…" maxlength="120">
+    <button class="btn-save" id="saveCaseBtn" onclick="saveCase()">Save →</button>
+  </div>
+  {% endif %}
+
+  <!-- Cohort info bar -->
+  {% if cohort %}
+  <div class="cohort-bar">
+    <span class="lbl">Benchmark Cohort</span>
+    <span class="val">{{ cohort.cohort_key }}</span>
+    <span class="conf-badge conf-{{ cohort.confidence }}">{{ cohort.confidence }} confidence</span>
+    {% if cohort.fallback_applied and cohort.fallback_reason %}
+    <span class="cohort-fallback">⚠ {{ cohort.fallback_reason }}</span>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Summary grid: Scorecard · Recommendation · Valuation -->
+  {% if sc %}
+  <div class="summary-grid section">
+
+    <!-- Family Scorecard -->
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Scorecard by Family</span>
+        <span class="badge badge-{{ band | lower | replace(' ', '-') }}">{{ band }}</span>
+      </div>
+      <div class="card-body">
+        {% for family, fs in sc.per_family.items() %}
+        <div class="family-row">
+          <div class="family-name">{{ family | replace("_", " ") | title }}</div>
+          <div class="family-track">
+            <div class="family-fill" style="width:{{ (fs.composite / 4.0 * 100) | int }}%"></div>
+          </div>
+          <div class="family-score">{{ "%.1f"|format(fs.composite) }}</div>
+          <span class="badge badge-{{ fs.band | lower | replace(' ', '-') }}">{{ fs.band }}</span>
+        </div>
+        {% endfor %}
+        <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border-lt); font-size:11px; color:var(--muted);">
+          Weight profile: <span style="font-weight:600;color:var(--text);">{{ sc.weights_profile | replace("_"," ") | title }}</span>
+          &nbsp;·&nbsp; Composite: <span style="font-weight:800;color:var(--text);">{{ "%.3f"|format(sc.composite) }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recommendation -->
+    {% if rec %}
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Recommendation</span>
+        <span class="rec-pill {{ rec.assessment }}">{{ rec.assessment | replace("_"," ") | upper }}</span>
+      </div>
+      <div class="card-body">
+        <div class="rec-rationale">{{ rec.rationale }}</div>
+        {% if rec.conditions %}
+        <div class="rec-conds">
+          <div class="conds-title">Conditions</div>
+          {% for cond in rec.conditions %}
+          <div class="rec-cond-item">
+            <span class="rec-cond-dot">●</span>
+            <span>{{ cond }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if not rec.conditions %}
+        <div style="margin-top:10px;font-size:11.5px;color:var(--green);font-weight:600;">
+          ✓ No conditions attached
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Solve-for-Price / Deal Price -->
+    <div class="card">
+      {% if rec and rec.solve_for_price %}
+      <div class="card-head">
+        <span class="card-title">Indicative Valuation</span>
+        <span style="font-size:10.5px;color:var(--muted);">Solve-for-price</span>
+      </div>
+      <div class="card-body">
+        {% set sfp = rec.solve_for_price %}
+        <div class="val-range">
+          <div class="val-box">
+            <div class="val-lbl">Floor</div>
+            <div class="val-num">${{ sfp.low }}</div>
+            <div class="val-unit">M</div>
+          </div>
+          <div class="val-box mid">
+            <div class="val-lbl">Midpoint</div>
+            <div class="val-num">${{ sfp.mid }}</div>
+            <div class="val-unit">M</div>
+          </div>
+          <div class="val-box">
+            <div class="val-lbl">Ceiling</div>
+            <div class="val-num">${{ sfp.high }}</div>
+            <div class="val-unit">M</div>
+          </div>
+        </div>
+        <div class="val-basis">{{ sfp.basis }}</div>
+      </div>
+      {% elif dc.price %}
+      <div class="card-head"><span class="card-title">Deal Price</span></div>
+      <div class="card-body">
+        <div class="val-box mid" style="max-width:160px;margin:0 auto 12px;">
+          <div class="val-lbl">Entry Price</div>
+          <div class="val-num">${{ dc.price }}</div>
+          <div class="val-unit">M</div>
+        </div>
+        {% if dc.arr_usd_m %}
+        <div class="val-basis">Implied ARR multiple: {{ "%.1f"|format(dc.price / dc.arr_usd_m) }}×</div>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="card-head"><span class="card-title">Deal Parameters</span></div>
+      <div class="card-body">
+        <div style="font-size:12px;color:var(--muted);">No price or valuation data provided.</div>
+      </div>
+      {% endif %}
+    </div>
+
+  </div><!-- /summary-grid -->
+  {% endif %}
+
+  <!-- Risk Register -->
+  {% if findings.risk_flags %}
+  <div class="card section">
+    <div class="card-head">
+      <span class="card-title">Risk Register</span>
+      <span style="font-size:11.5px;font-weight:700;color:var(--amber);">
+        {{ findings.risk_flags | length }} flag{{ "s" if findings.risk_flags | length != 1 }}
+      </span>
+    </div>
+    <div class="card-body">
+      <div class="risk-list">
+        {% for flag in findings.risk_flags %}
+        <div class="risk-item">
+          <span class="risk-icon">▲</span>
+          <span class="risk-text">{{ flag }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="card section" style="border-left:3px solid #22c55e;">
+    <div class="card-body" style="padding:10px 16px;">
+      <span style="font-size:12.5px;color:#15803d;font-weight:600;">✓ No material risk flags identified</span>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- DD Questions -->
+  <div class="card section" id="ddqCard">
+    <div class="card-head" style="cursor:pointer;" onclick="const b=document.getElementById('ddqCollapsible'); const open=b.style.display!=='none'; b.style.display=open?'none':'block'; document.getElementById('ddqCollapseArrow').textContent=open?'▾':'▴';">
+      <span class="card-title">Due Diligence Questions</span>
+      <span id="ddqStats" style="font-size:11px;color:var(--muted);"></span>
+      <span id="ddqCollapseArrow" style="font-size:11px;color:var(--muted);margin-left:6px;">▴</span>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center;" onclick="event.stopPropagation();">
+        <button class="btn-generate" id="ddqGenerateBtn" onclick="ddqGenerate()">⚡ Generate Questions</button>
+        <button class="btn btn-secondary" id="ddqAddBtn" onclick="ddqAddCustom()" style="display:none;font-size:11.5px;padding:6px 12px;">+ Add Question</button>
+      </div>
+    </div>
+    <div id="ddqCollapsible">
+    <div id="ddqBody" style="padding:0 20px 8px;"></div>
+    <div id="ddqAddForm" style="display:none;margin:0 20px 16px;padding:14px 16px;background:#f8fafc;border:1px solid var(--border);border-radius:7px;">
+      <div style="margin-bottom:10px;">
+        <textarea id="ddqAddText" rows="2" placeholder="Enter your question…" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:5px;font-size:13px;resize:vertical;font-family:inherit;"></textarea>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <span style="font-size:12px;color:var(--text-2);font-weight:600;">Priority:</span>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
+          <input type="radio" name="ddqPriority" value="critical"> <span style="color:#991b1b;font-weight:600;">Critical</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
+          <input type="radio" name="ddqPriority" value="high"> <span style="color:#92400e;font-weight:600;">High</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
+          <input type="radio" name="ddqPriority" value="medium" checked> <span style="color:#374151;font-weight:600;">Medium</span>
+        </label>
+        <div style="margin-left:auto;display:flex;gap:8px;">
+          <button onclick="ddqAddSubmit()" style="padding:6px 16px;background:#1d4ed8;color:#fff;border:none;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">Add</button>
+          <button onclick="ddqAddCancel()" style="padding:6px 12px;background:#f3f4f6;color:#374151;border:1px solid var(--border);border-radius:4px;font-size:12px;cursor:pointer;">Cancel</button>
+        </div>
+      </div>
+    </div>
+    </div><!-- /ddqCollapsible -->
+  </div>
+
+  <!-- Metrics Scorecard Table -->
+  <div class="card section">
+    <div class="card-head">
+      <span class="card-title">Metric Scorecard</span>
+      <span style="font-size:11px;color:var(--muted);">
+        Bar shows position within cohort P25–P75 range · tick = median · dot = value
+      </span>
+    </div>
+    <div style="overflow-x:auto;">
+    <table class="metrics-table">
+      <thead>
+        <tr>
+          <th style="width:200px;">Metric</th>
+          <th class="center">Value</th>
+          <th class="center">vs. Cohort Benchmark</th>
+          <th class="center">Band</th>
+          <th class="center">Trend</th>
+          <th class="center">Pts</th>
+          <th>P25 / Median / P75</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for key in METRIC_ORDER %}
+        {% if key in gm %}
+        {% set m = gm[key] %}
+        {% set bm = m.benchmark %}
+        {% set span = (bm.q3 - bm.q1) if (bm.q3 != bm.q1) else 1 %}
+        {# Compute display positions — flip for lower_better so right=good #}
+        {% set raw_pct = bar_positions.get(key, 50) %}
+        {% set display_pct = (100 - raw_pct) if bm.direction == "lower_better" else raw_pct %}
+        {% set median_raw_pct = ((bm.median - bm.q1) / span * 100) | round(1) %}
+        {% set display_median_pct = (100 - median_raw_pct) if bm.direction == "lower_better" else median_raw_pct %}
+        {# Clamp display positions #}
+        {% set display_pct = [0.0, [100.0, display_pct] | min] | max %}
+        {% set display_median_pct = [0.0, [100.0, display_median_pct] | min] | max %}
+        <tr>
+          <td>
+            <div class="metric-label">{{ LABELS.get(key, key | replace("_"," ") | title) }}</div>
+            <div class="metric-sub">{{ FAMILIES.get(key, "") | title }}</div>
+          </td>
+          <td class="center">
+            <div class="metric-value">
+              {{- "%.1f"|format(m.value) -}}{{- UNITS.get(key, "") -}}
+            </div>
+          </td>
+          <td class="center">
+            <div class="bm-wrap">
+              <div class="bm-track">
+                <div class="bm-median-tick" style="left:{{ display_median_pct }}%;"></div>
+                <div class="bm-dot {{ m.band | lower }}" style="left:{{ display_pct }}%;"></div>
+              </div>
+              <div class="bm-axis">
+                {% if bm.direction == "lower_better" %}
+                <span title="P75">{{ bm.q3 }}</span>
+                <span class="bm-median-lbl">{{ bm.median }}</span>
+                <span title="P25">{{ bm.q1 }}</span>
+                {% else %}
+                <span title="P25">{{ bm.q1 }}</span>
+                <span class="bm-median-lbl">{{ bm.median }}</span>
+                <span title="P75">{{ bm.q3 }}</span>
+                {% endif %}
+              </div>
+            </div>
+          </td>
+          <td class="center">
+            <span class="badge badge-{{ m.band | lower }}">{{ m.band }}</span>
+          </td>
+          <td class="center">
+            {% if m.trend %}
+            <span class="trend-chip trend-{{ m.trend }}">
+              {% if m.trend == "improving" %}↑{% elif m.trend == "declining" %}↓{% else %}→{% endif %}
+              {{ m.trend | title }}
+            </span>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="center">
+            <span class="metric-pts pts-{{ m.points }}">{{ m.points }}</span>
+          </td>
+          <td>
+            <span class="text-muted mono" style="font-size:10.5px;">
+              {{ bm.q1 }} / {{ bm.median }} / {{ bm.q3 }}
+              <span style="font-size:9px;color:var(--muted);"> (P25/Med/P75)</span>
+            </span>
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <!-- IC Memo -->
+  <div class="card section">
+    <div class="card-head">
+      <span class="card-title">IC Memo</span>
+      {% if report_html %}
+      <span class="report-badge llm" style="background:#f0fdf4;color:#15803d;border-color:#bbf7d0;">Investment Committee Memo</span>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      {% if report_html %}
+      <div class="report-body">
+        {{ report_html | safe }}
+      </div>
+      {% else %}
+      <div style="padding:32px 20px;text-align:center;color:var(--text-3);">
+        <div style="font-size:28px;margin-bottom:12px;">📋</div>
+        <div style="font-weight:600;font-size:14px;margin-bottom:6px;">IC Memo not yet generated</div>
+        <div style="font-size:13px;line-height:1.6;">Generate DD questions, resolve them, then click <strong>Re-run</strong> to produce the Investment Committee memo incorporating all findings.</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="actions-row">
+    <a href="/" class="btn btn-primary">← New Analysis</a>
+    <a href="/cases" class="btn btn-secondary">My Cases</a>
+    {% if case_id %}
+    <button id="exportPptxBtn" class="btn btn-secondary" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;" onclick="exportPptx()">⬇ Export IC Deck (.pptx)</button>
+    {% endif %}
+    <button class="btn btn-secondary" onclick="downloadJson()">Download Findings (.json)</button>
+  </div>
+
+</div><!-- /page-body -->
+
+<!-- Embedded data for JS -->
+<script id="findingsData"  type="application/json">{{ findings_json | safe }}</script>
+<script id="requestData"   type="application/json">{{ request_json | safe }}</script>
+<script>
+  const findingsJson = document.getElementById('findingsData').textContent;
+  const requestJson  = document.getElementById('requestData').textContent;
+  const reportMd     = `{{ report_md_escaped | safe }}`;
+  const llmModel     = {{ llm_model | tojson }};
+  const caseId       = {{ case_id | tojson }};
+  const assessment   = {{ assessment | tojson }};
+
+  async function exportPptx() {
+    const overlay  = document.getElementById('exportOverlay');
+    const spinner  = document.getElementById('exportSpinner');
+    const msg      = document.getElementById('exportMsg');
+    const sub      = document.getElementById('exportSub');
+    const dismiss  = document.getElementById('exportDismiss');
+    const btn      = document.getElementById('exportPptxBtn');
+
+    // Reset to loading state
+    spinner.style.display = 'block';
+    msg.style.color = '#15803d';
+    msg.textContent = 'Generating IC Deck…';
+    sub.textContent = 'LLM is designing your PowerPoint — this takes ~20 seconds';
+    dismiss.style.display = 'none';
+    overlay.style.display = 'flex';
+    btn.disabled = true;
+
+    // Yield to the browser so the overlay paints before the fetch starts
+    await new Promise(r => requestAnimationFrame(r));
+
+    try {
+      const resp = await fetch(`/cases/{{ case_id }}/export/pptx`);
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: resp.statusText }));
+        throw new Error(err.error || resp.statusText);
+      }
+      const blob  = await resp.blob();
+      const url   = URL.createObjectURL(blob);
+      const a     = document.createElement('a');
+      const cd    = resp.headers.get('Content-Disposition') || '';
+      const match = cd.match(/filename="([^"]+)"/);
+      a.href = url;
+      a.download = match ? match[1] : 'IC_Deck.pptx';
+      a.click();
+      URL.revokeObjectURL(url);
+      overlay.style.display = 'none';
+      btn.innerHTML = '✓ Downloaded';
+      setTimeout(() => { btn.innerHTML = '⬇ Export IC Deck (.pptx)'; btn.disabled = false; }, 3000);
+    } catch (err) {
+      spinner.style.display = 'none';
+      msg.style.color = '#991b1b';
+      msg.textContent = 'Export failed';
+      sub.textContent = err.message;
+      dismiss.style.display = 'inline-block';
+    }
+  }
+
+  function downloadJson() {
+    const blob = new Blob([findingsJson], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'dd_findings.json'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadReport() {
+    const blob = new Blob([reportMd], { type: 'text/markdown' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'dd_report.md'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ── DD Questions ────────────────────────────────────────────────────────────
+
+  let ddqList = [];  // [{id, category, priority, question, evidence, materials, status, answer, custom}]
+
+  // Auto-render questions if already present in findings
+  (function initDDQ() {
+    const f = JSON.parse(findingsJson);
+    const existing = (f.dd_questions || []);
+    if (existing.length) {
+      ddqList = existing.map((q, i) => ({
+        id:       q.id       || ('q' + i),
+        category: q.category || 'General',
+        priority: q.priority || 'medium',
+        question: q.question || '',
+        evidence: q.evidence || '',
+        materials: q.materials || [],
+        status:   q.status   || 'open',
+        outcome:  q.outcome  || null,
+        answer:   q.answer   || '',
+        custom:   q.custom   || false,
+      }));
+      ddqRender();  // will hide Generate button and show Regenerate
+    }
+  })();
+
+  async function ddqGenerate() {
+    const btn = document.getElementById('ddqGenerateBtn');
+    btn.disabled = true;
+    btn.textContent = 'Generating…';
+    try {
+      const openExisting = ddqList.filter(q => q.status === 'open' && !q.custom);
+      const preserved    = ddqList.filter(q => q.status === 'resolved' || q.custom);
+
+      // Run question generation and review (for existing open Qs) in parallel
+      const [genResp, reviewResp] = await Promise.all([
+        fetch('/dd-questions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ findings_json: findingsJson, gemini_model: llmModel, case_id: caseId }),
+        }),
+        openExisting.length ? fetch('/dd-questions/review', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ open_questions: openExisting, findings_json: findingsJson, gemini_model: llmModel }),
+        }) : Promise.resolve(null),
+      ]);
+
+      if (!genResp.ok) {
+        const errData = await genResp.json().catch(() => ({}));
+        console.error('DD question generation failed:', errData.detail || errData);
+        throw new Error(errData.error || 'Question generation failed. Please try again.');
+      }
+      const genData = await genResp.json();
+      if (genData.error) {
+        console.error('DD question generation failed:', genData.detail || genData.error);
+        throw new Error(genData.error);
+      }
+      const questions = genData.questions || [];
+
+      // Apply auto-resolutions to preserved open questions
+      if (reviewResp && reviewResp.ok) {
+        const { resolved } = await reviewResp.json();
+        const resolvedMap = Object.fromEntries((resolved || []).map(r => [r.id, r.reason]));
+        preserved.forEach(q => {
+          if (q.status === 'open' && resolvedMap[q.id]) {
+            q.status = 'resolved';
+            q.answer = resolvedMap[q.id];  // auto-fill with the LLM-provided reason
+          }
+        });
+      }
+
+      const fresh = questions.map((q, i) => ({
+        id: 'q' + Date.now() + i,
+        category: q.category || 'General',
+        priority: q.priority || 'medium',
+        question: q.question || '',
+        evidence: q.evidence || '',
+        materials: q.materials || [],
+        status: 'open',
+        answer: '',
+        custom: false,
+      }));
+
+      ddqList = [...preserved, ...fresh];
+      ddqPersist();
+      ddqRender();
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = '⚡ Generate Questions';
+      alert('Question generation failed. Please try again.');
+    }
+  }
+
+  function ddqRender() {
+    const open     = ddqList.filter(q => q.status === 'open');
+    const issues   = ddqList.filter(q => q.status === 'resolved' && (q.outcome === 'deal_breaker' || q.outcome === 'risk_confirmed'));
+    const allayed  = ddqList.filter(q => q.status === 'resolved' && q.outcome !== 'deal_breaker' && q.outcome !== 'risk_confirmed');
+
+    const stats = document.getElementById('ddqStats');
+    const dealBreakerCount  = issues.filter(q => q.outcome === 'deal_breaker').length;
+    const riskConfirmedCount = issues.filter(q => q.outcome === 'risk_confirmed').length;
+    const parts = [];
+    if (dealBreakerCount)   parts.push(`<span style="color:#b91c1c;font-weight:700;">${dealBreakerCount} deal breaker${dealBreakerCount>1?'s':''}</span>`);
+    if (riskConfirmedCount) parts.push(`<span style="color:#b45309;font-weight:600;">${riskConfirmedCount} risk confirmed</span>`);
+    if (allayed.length)     parts.push(`<span style="color:#15803d;font-weight:600;">${allayed.length} allayed</span>`);
+    parts.push(`${open.length} open`);
+    stats.innerHTML = parts.join('&nbsp;·&nbsp;');
+
+    const btn = document.getElementById('ddqGenerateBtn');
+    btn.textContent = '↺ Regenerate';
+    btn.disabled = false;
+    document.getElementById('ddqAddBtn').style.display = 'inline-flex';
+
+    const body = document.getElementById('ddqBody');
+    body.innerHTML = '';
+
+    if (!ddqList.length) {
+      body.innerHTML = '<p style="color:var(--text-3);font-size:12.5px;padding:12px 0;">No follow-up questions identified for this analysis.</p>';
+      updateIcStatus();
+      return;
+    }
+
+    // Issues Found section (deal breakers + risk confirmed) — always visible
+    if (issues.length) {
+      const sec = document.createElement('div');
+      sec.className = 'ddq-issues-section';
+      sec.innerHTML = `<div class="ddq-issues-label">⚑ Issues Found (${issues.length})</div>`;
+      issues.forEach(q => sec.appendChild(ddqItemEl(q)));
+      body.appendChild(sec);
+    }
+
+    // Open questions grouped by category
+    const cats = {};
+    open.forEach(q => { (cats[q.category] = cats[q.category] || []).push(q); });
+    const catOrder = ['Data Integrity','Retention','Growth','Unit Economics','Efficiency','Competitive','People & Operations','Legal & Risk','General'];
+    const orderedCats = [...catOrder.filter(c => cats[c]), ...Object.keys(cats).filter(c => !catOrder.includes(c))];
+
+    orderedCats.forEach(cat => {
+      const div = document.createElement('div');
+      div.className = 'ddq-category';
+      const integrityClass = cat === 'Data Integrity' ? ' integrity' : '';
+      div.innerHTML = `<div class="ddq-cat-label${integrityClass}">${cat === 'Data Integrity' ? '🔍 ' : ''}${cat}</div>`;
+      cats[cat].forEach(q => div.appendChild(ddqItemEl(q)));
+      body.appendChild(div);
+    });
+
+    // Allayed section — collapsible
+    if (allayed.length) {
+      const sec = document.createElement('div');
+      sec.style.cssText = 'border-top:1px solid var(--border);margin-top:12px;padding-top:4px;';
+      sec.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 0;cursor:pointer;" onclick="const d=this.nextElementSibling; const open=d.style.display!=='none'; d.style.display=open?'none':'block'; this.querySelector('.ddq-toggle-arrow').textContent=open?'▾':'▴';">
+          <span style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);">Allayed (${allayed.length})</span>
+          <span class="ddq-toggle-arrow" style="font-size:11px;color:var(--muted);">▴</span>
+        </div>
+        <div id="ddqAllayed"></div>`;
+      body.appendChild(sec);
+      const rDiv = sec.querySelector('#ddqAllayed');
+      allayed.forEach(q => rDiv.appendChild(ddqItemEl(q)));
+    }
+
+    updateIcStatus();
+  }
+
+  function ddqItemEl(q) {
+    const wrap = document.createElement('div');
+    wrap.className = 'ddq-item';
+    wrap.id = 'ddq-' + q.id;
+
+    const isResolved = q.status === 'resolved';
+    const outcome    = q.outcome || null;
+    const matHtml    = (q.materials || []).map(m => `<span class="ddq-material-tag">${m}</span>`).join('');
+
+    const outcomeBadge = !isResolved ? '' :
+      outcome === 'deal_breaker'   ? `<span style="font-size:9px;font-weight:700;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:3px;padding:2px 7px;margin-left:6px;">✗ DEAL BREAKER</span>` :
+      outcome === 'risk_confirmed' ? `<span style="font-size:9px;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:3px;padding:2px 7px;margin-left:6px;">⚠ RISK CONFIRMED</span>` :
+      `<span style="font-size:9px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #86efac;border-radius:3px;padding:2px 7px;margin-left:6px;">✓ ALLAYED</span>`;
+
+    const answerBg = outcome === 'deal_breaker'   ? 'background:#fef2f2;border-color:#fca5a5;color:#991b1b;'
+                   : outcome === 'risk_confirmed' ? 'background:#fffbeb;border-color:#fde68a;color:#92400e;'
+                   : 'background:#f0fdf4;border-color:#86efac;color:#166534;';
+
+    wrap.innerHTML = `
+      <div>
+        <span class="ddq-priority ${q.priority}">${q.priority}</span>
+      </div>
+      <div class="ddq-body">
+        <div class="ddq-question">${q.question}${outcomeBadge}</div>
+        <div class="ddq-evidence">📌 ${q.evidence}</div>
+        ${matHtml ? `<div class="ddq-materials" style="margin-top:5px;">${matHtml}</div>` : ''}
+        ${isResolved && q.answer ? `
+          <div style="margin-top:8px;${answerBg}border:1px solid;border-radius:4px;padding:8px 12px;font-size:12.5px;line-height:1.5;">
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:3px;">Answer</span>
+            ${q.answer}
+          </div>` : ''}
+        <div id="ddq-resolve-${q.id}" style="display:none;margin-top:10px;">
+          <textarea id="ddq-ans-${q.id}" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:5px;font-size:13px;resize:vertical;min-height:72px;" placeholder="Record what management said or what you found…">${q.answer || ''}</textarea>
+          <div style="font-size:11.5px;color:var(--text-3);margin:6px 0 4px;">How does this answer affect the investment case?</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button onclick="ddqSaveAnswer('${q.id}','allayed')"        style="padding:5px 13px;background:#dcfce7;color:#15803d;border:1px solid #86efac;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">✓ Concern Allayed</button>
+            <button onclick="ddqSaveAnswer('${q.id}','risk_confirmed')" style="padding:5px 13px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">⚠ Risk Confirmed</button>
+            <button onclick="ddqSaveAnswer('${q.id}','deal_breaker')"   style="padding:5px 13px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">✗ Deal Breaker</button>
+            <button onclick="ddqCancelResolve('${q.id}')" style="padding:5px 11px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:4px;font-size:12px;cursor:pointer;">Cancel</button>
+          </div>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;">
+          ${!isResolved
+            ? `<button onclick="ddqStartResolve('${q.id}')" style="font-size:11px;color:#15803d;background:#f0fdf4;border:1px solid #86efac;border-radius:4px;padding:3px 10px;cursor:pointer;font-weight:600;">✓ Resolve</button>`
+            : `<button onclick="ddqReopen('${q.id}')" style="font-size:11px;color:#6b7280;background:#f3f4f6;border:1px solid #d1d5db;border-radius:4px;padding:3px 10px;cursor:pointer;">Reopen</button>`
+          }
+          <button onclick="ddqRemove('${q.id}')" style="font-size:11px;color:#b91c1c;background:none;border:none;padding:3px 6px;cursor:pointer;">Remove</button>
+        </div>
+      </div>`;
+    return wrap;
+  }
+
+  function ddqStartResolve(id) {
+    document.getElementById('ddq-resolve-' + id).style.display = 'block';
+  }
+  function ddqCancelResolve(id) {
+    document.getElementById('ddq-resolve-' + id).style.display = 'none';
+  }
+  function ddqSaveAnswer(id, outcome) {
+    const answer = document.getElementById('ddq-ans-' + id).value.trim();
+    const q = ddqList.find(x => x.id === id);
+    if (q) { q.status = 'resolved'; q.answer = answer; q.outcome = outcome; }
+    ddqPersist();
+    ddqRender();
+  }
+  function ddqReopen(id) {
+    const q = ddqList.find(x => x.id === id);
+    if (q) { q.status = 'open'; q.outcome = null; }
+    ddqPersist();
+    ddqRender();
+  }
+  function ddqRemove(id) {
+    ddqList = ddqList.filter(x => x.id !== id);
+    ddqPersist();
+    ddqRender();
+  }
+
+  function ddqAddCustom() {
+    document.getElementById('ddqAddForm').style.display = 'block';
+    document.getElementById('ddqAddText').focus();
+  }
+
+  function ddqAddCancel() {
+    document.getElementById('ddqAddForm').style.display = 'none';
+    document.getElementById('ddqAddText').value = '';
+    document.querySelector('input[name="ddqPriority"][value="medium"]').checked = true;
+  }
+
+  function ddqAddSubmit() {
+    const text = document.getElementById('ddqAddText').value.trim();
+    if (!text) return;
+    const priority = document.querySelector('input[name="ddqPriority"]:checked').value;
+    ddqList.unshift({
+      id: 'cq' + Date.now(),
+      category: 'General',
+      priority,
+      question: text,
+      evidence: 'Added manually',
+      materials: [],
+      status: 'open',
+      answer: '',
+      custom: true,
+    });
+    ddqAddCancel();
+    ddqPersist();
+    ddqRender();
+  }
+
+  async function ddqPersist() {
+    if (!caseId) return;  // unsaved analysis — no server persistence
+    try {
+      await fetch('/dd-questions/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ case_id: caseId, questions: ddqList }),
+      });
+    } catch (_) {}
+  }
+
+  // ── Save case ───────────────────────────────────────────────────────────────
+
+  async function saveCase() {
+    const nameInput = document.getElementById('caseNameInput');
+    const btn       = document.getElementById('saveCaseBtn');
+    const name      = nameInput.value.trim() || 'Untitled Case';
+    btn.disabled    = true;
+    btn.textContent = 'Saving…';
+    try {
+      const resp = await fetch('/cases/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          request_json:  requestJson,
+          findings_json: findingsJson,
+          gemini_model:  llmModel,
+        }),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const { id } = await resp.json();
+      window.location.href = '/cases/' + id;
+    } catch (err) {
+      btn.disabled    = false;
+      btn.textContent = 'Save →';
+      alert('Save failed: ' + err.message);
+    }
+  }
+
+  // Allow Enter key in case name input
+  document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('caseNameInput');
+    if (input) input.addEventListener('keydown', e => { if (e.key === 'Enter') saveCase(); });
+  });
+
+  async function rerunCase(e) {
+    e.preventDefault();
+    if (!caseId) return;
+    const overlay = document.getElementById('rerunOverlay');
+    overlay.style.display = 'flex';
+    try {
+      const resp = await fetch(`/cases/${caseId}/rerun`, { method: 'POST' });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Re-run failed');
+      window.location.reload();
+    } catch(err) {
+      overlay.style.display = 'none';
+      alert('Re-run failed: ' + err.message);
+    }
+  }
+
+  function updateIcStatus() {
+    const bar    = document.getElementById('icStatusBar');
+    const pill   = document.getElementById('icStagePill');
+    const detail = document.getElementById('icStatusDetail');
+    if (!bar) return;
+
+    const unlock = (yes, ddAssessment) => {
+      document.getElementById('verdictLocked').style.display       = yes ? 'none'  : 'block';
+      document.getElementById('verdictUnlocked').style.display     = yes ? 'block' : 'none';
+      document.getElementById('verdictBodyLocked').style.display   = yes ? 'none'  : 'flex';
+      document.getElementById('verdictBodyUnlocked').style.display = yes ? 'block' : 'none';
+      if (yes && ddAssessment) {
+        // Update the displayed verdict label to reflect DD outcomes
+        const label = ddAssessment.replace(/_/g, ' ').toUpperCase();
+        const el = document.getElementById('verdictUnlocked').querySelector('.verdict-label');
+        if (el) el.textContent = label;
+        // Update hero card color class
+        const hero = document.getElementById('verdictHero');
+        hero.className = hero.className.replace(/\b(buy|conditional_buy|hold|pass)\b/, ddAssessment);
+      }
+    };
+
+    // Adjust verdict based on DD outcomes: deal_breaker→pass, risk_confirmed→cap at conditional_buy
+    const ddAdjustedAssessment = (() => {
+      const riskConfirmed = ddqList.filter(q => q.outcome === 'risk_confirmed');
+      const dealBreakerQs = ddqList.filter(q => q.outcome === 'deal_breaker');
+      if (dealBreakerQs.length > 0) return 'pass';
+      if (riskConfirmed.length > 0 && assessment === 'buy') return 'conditional_buy';
+      return assessment;
+    })();
+
+    const rerunLink = `&nbsp;<a href="#" onclick="rerunCase(event)" style="font-size:11.5px;font-weight:600;color:#15803d;text-decoration:underline;">Re-run →</a>`;
+
+    if (!ddqList.length) {
+      bar.className    = 'ic-status-bar initial-screen';
+      pill.textContent = 'Initial Screen';
+      detail.innerHTML = 'Generate due diligence questions to begin formal review.';
+      unlock(false);
+      return;
+    }
+
+    const dealBreakers   = ddqList.filter(q => q.outcome === 'deal_breaker');
+    const openCritical   = ddqList.filter(q => q.status === 'open' && q.priority === 'critical');
+    const openHigh       = ddqList.filter(q => q.status === 'open' && q.priority === 'high');
+    const openAll        = ddqList.filter(q => q.status === 'open');
+
+    if (dealBreakers.length > 0) {
+      bar.className    = 'ic-status-bar deal-breaker';
+      pill.textContent = 'Deal Breaker Identified';
+      detail.innerHTML = `${dealBreakers.length} deal breaker${dealBreakers.length > 1 ? 's' : ''} flagged — recommendation cannot be issued.${rerunLink}`;
+      unlock(false, null);
+    } else if (openCritical.length > 0) {
+      bar.className    = 'ic-status-bar preliminary';
+      pill.textContent = 'Preliminary — IC Not Ready';
+      detail.innerHTML = `${openCritical.length} critical item${openCritical.length > 1 ? 's' : ''} must be resolved before IC.${openHigh.length > 0 ? ' ' + openHigh.length + ' high-priority open.' : ''}`;
+      unlock(false, null);
+    } else if (openAll.length > 0) {
+      bar.className    = 'ic-status-bar ic-ready';
+      pill.textContent = 'IC Ready';
+      detail.innerHTML = `All critical items resolved. ${openAll.length} non-critical question${openAll.length > 1 ? 's' : ''} remaining.${rerunLink}`;
+      unlock(true, ddAdjustedAssessment);
+    } else {
+      bar.className    = 'ic-status-bar ic-ready';
+      pill.textContent = 'IC Ready — DD Complete';
+      detail.innerHTML = `All due diligence questions resolved.${rerunLink}`;
+      unlock(true, ddAdjustedAssessment);
+    }
+  }
+
+  function renameStart() {
+    document.getElementById('savedBannerName').style.display = 'none';
+    document.getElementById('renameBtn').style.display = 'none';
+    const input = document.getElementById('renameInput');
+    input.style.display = 'inline-block';
+    document.getElementById('renameSaveBtn').style.display = 'inline-block';
+    input.focus();
+    input.select();
+  }
+
+  async function renameSave() {
+    const name = document.getElementById('renameInput').value.trim();
+    if (!name || !caseId) return;
+    await fetch(`/cases/${caseId}/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    document.getElementById('savedBannerName').textContent = name;
+    document.getElementById('savedBannerName').style.display = 'inline';
+    document.getElementById('renameBtn').style.display = 'inline-block';
+    document.getElementById('renameInput').style.display = 'none';
+    document.getElementById('renameSaveBtn').style.display = 'none';
+    document.title = name + ' — M&A DD';
+  }
+</script>
+</body>
+</html>

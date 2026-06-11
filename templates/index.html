@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>M&amp;A DD Analyzer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:      #0b1526;
+      --navy2:     #162032;
+      --blue:      #1d4ed8;
+      --blue-lt:   #eff6ff;
+      --border:    #e2e6ed;
+      --border2:   #d0d5de;
+      --bg:        #f3f5f8;
+      --surface:   #ffffff;
+      --text:      #0f172a;
+      --muted:     #64748b;
+      --faint:     #94a3b8;
+      --radius:    8px;
+    }
+
+    body { font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+           background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+
+    /* ── Header ── */
+    header {
+      background: var(--navy);
+      padding: 0 40px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .logo { color: #fff; font-size: 13px; font-weight: 600; letter-spacing: 0.03em; }
+    .logo span { color: #64748b; font-weight: 400; margin-left: 8px; }
+    .header-rule { height: 16px; width: 1px; background: rgba(255,255,255,0.12); }
+    .header-note { color: #64748b; font-size: 12px; }
+
+    /* ── Layout ── */
+    .page { max-width: 960px; margin: 0 auto; padding: 36px 24px 80px; }
+
+    .page-title { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .page-sub   { font-size: 13px; color: var(--muted); margin-bottom: 28px; }
+
+    /* ── Section cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .card-head {
+      padding: 12px 20px;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-head h2 {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+    .card-head .badge {
+      font-size: 10px;
+      background: var(--blue-lt);
+      color: var(--blue);
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .badge-opt { background: #f0fdf4 !important; color: #15803d !important; }
+    textarea { resize: vertical; line-height: 1.55; font-size: 13px; }
+    .card-body { padding: 20px; }
+
+    /* ── Form grid ── */
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 14px; }
+    .grid-5 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; gap: 14px; }
+    .col-span-2 { grid-column: span 2; }
+    .col-span-3 { grid-column: span 3; }
+
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    label .unit {
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+      color: var(--faint);
+      font-size: 11px;
+    }
+    label .req { color: #ef4444; margin-left: 2px; }
+
+    input[type=text], input[type=number], select, textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text);
+      background: #fff;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      -moz-appearance: textfield;
+    }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { opacity: 0.4; }
+    select { cursor: pointer; }
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(29,78,216,0.1);
+    }
+    input::placeholder { color: var(--faint); }
+    .field-hint { font-size: 11px; color: var(--faint); }
+
+    /* ── Divider within card ── */
+    .card-divider { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+
+    /* ── Toggle section ── */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .toggle-row input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--blue); }
+    .toggle-label { font-size: 13px; font-weight: 500; color: var(--text); }
+    .toggle-sub   { font-size: 12px; color: var(--muted); }
+    .collapsible  { display: none; margin-top: 18px; }
+    .collapsible.open { display: block; }
+
+    /* ── Series table ── */
+    .series-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .series-table th {
+      text-align: left;
+      padding: 6px 10px;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .series-table td {
+      padding: 5px 8px;
+      border: 1px solid var(--border);
+    }
+    .series-table td:first-child { font-weight: 500; color: var(--muted); width: 160px; }
+    .series-table input {
+      border: none;
+      background: transparent;
+      font-size: 12.5px;
+      padding: 2px 4px;
+      width: 100%;
+    }
+    .series-table input:focus { outline: 1px solid var(--blue); border-radius: 3px; }
+    .period-label { color: var(--faint); font-size: 11px; font-style: italic; }
+
+    /* ── Actions ── */
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 20px 0 0;
+    }
+    .btn-primary {
+      padding: 11px 28px;
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.01em;
+      transition: background 0.15s;
+    }
+    .btn-primary:hover { background: #1e40af; }
+    .btn-ghost {
+      padding: 10px 18px;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-ghost:hover { background: #f1f5f9; }
+    .btn-cancel {
+      padding: 10px 20px; border-radius: 6px; font-size: 13px; font-weight: 600;
+      cursor: pointer; border: 1px solid #fca5a5; background: #fee2e2; color: #b91c1c;
+      transition: background 0.15s;
+    }
+    .btn-cancel:hover { background: #fecaca; }
+    .api-note {
+      margin-left: auto;
+      font-size: 12px;
+      color: var(--faint);
+    }
+    .api-note code { font-family: monospace; background: #f1f5f9; padding: 2px 5px; border-radius: 3px; }
+
+    @media (max-width: 720px) {
+      .grid-3, .grid-4, .grid-5 { grid-template-columns: 1fr 1fr; }
+      .col-span-3 { grid-column: span 2; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">M&amp;A DD Analyzer <span>Buy-side due diligence</span></div>
+    <div class="header-rule"></div>
+    <div class="header-note">One-pass · Deterministic grading · LLM report synthesis</div>
+    <a href="/cases" style="margin-left:auto;font-size:12px;color:#c4d8ee;text-decoration:none;border:1px solid rgba(255,255,255,0.20);padding:6px 16px;border-radius:4px;font-weight:600;background:rgba(255,255,255,0.06);transition:all 0.15s;" onmouseover="this.style.color='#fff';this.style.background='rgba(255,255,255,0.12)'" onmouseout="this.style.color='#c4d8ee';this.style.background='rgba(255,255,255,0.06)'">My Cases</a>
+  </header>
+
+  <div class="page">
+    <div class="page-title">New Analysis</div>
+    <div class="page-sub">Enter deal context and target metrics. All required fields must be present before running.</div>
+
+    <form id="mainForm" action="/analyze" method="POST">
+      <input type="hidden" name="payload" id="payload"><!-- kept for native submit fallback -->
+
+      <!-- ── Deal Context ── -->
+      <div class="card">
+        <div class="card-head"><h2>Deal Context</h2></div>
+        <div class="card-body">
+          <div class="grid-4">
+            <div class="field">
+              <label>Buyer Segment <span class="req">*</span></label>
+              <select id="buyer_segment" required>
+                <option value="growth_equity">Growth Equity</option>
+                <option value="lmm">Lower Middle Market</option>
+                <option value="strategic">Strategic / Corporate</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Stage <span class="req">*</span></label>
+              <select id="stage" required>
+                <option value="early">Early</option>
+                <option value="growth" selected>Growth</option>
+                <option value="late">Late</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Vertical <span class="req">*</span></label>
+              <select id="vertical" required>
+                <option value="vertical_saas" selected>Vertical SaaS</option>
+                <option value="horizontal_saas">Horizontal SaaS</option>
+                <option value="fintech">Fintech</option>
+                <option value="healthtech">Healthtech</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>ARR Size Band <span class="req">*</span></label>
+              <select id="size_band" required>
+                <option value="0-5M">$0–5M</option>
+                <option value="5-10M">$5–10M</option>
+                <option value="10-25M">$10–25M</option>
+                <option value="25-50M" selected>$25–50M</option>
+                <option value="50-100M">$50–100M</option>
+                <option value="100M+">$100M+</option>
+              </select>
+            </div>
+          </div>
+
+          <hr class="card-divider">
+
+          <div class="grid-5">
+            <div class="field">
+              <label>Entry Price <span class="unit">$M · blank = solve for price</span></label>
+              <input type="number" id="price" step="0.1" min="0" placeholder="—">
+            </div>
+            <div class="field">
+              <label>Target IRR <span class="unit">%</span> <span class="req">*</span></label>
+              <input type="number" id="return_target" step="0.1" value="25.0" required>
+            </div>
+            <div class="field">
+              <label>Hold Period <span class="unit">years</span> <span class="req">*</span></label>
+              <input type="number" id="hold_years" step="1" min="1" max="15" value="5" required>
+            </div>
+            <div class="field">
+              <label>Thesis Tags <span class="unit">comma-separated</span></label>
+              <input type="text" id="thesis_tags" placeholder="land-and-expand, smb-focus">
+            </div>
+            <div class="field">
+              <label>AI Report Model</label>
+              <select id="gemini_model" name="gemini_model">
+                <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+                <option value="gemini-3.1-pro">Gemini 3.1 Pro</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Company Description ── -->
+      <div class="card">
+        <div class="card-head">
+          <h2>Company Description</h2>
+          <span class="badge badge-opt">Optional · Used by AI for strategic analysis</span>
+        </div>
+        <div class="card-body">
+          <div class="field">
+            <label>What does the company do? <span class="unit">market, product, customer base, competitive positioning</span></label>
+            <textarea id="company_description" rows="4" placeholder="e.g. Vertical SaaS platform for independent auto dealerships. Manages DMS, CRM, and F&I workflows in a single cloud product. Primary competitors are CDK Global and Reynolds & Reynolds. Targets small-to-mid-size dealers (5–50 rooftops) underserved by legacy on-prem vendors."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Headline Metrics ── -->
+      <div class="card">
+        <div class="card-head">
+          <h2>Headline Metrics</h2>
+          <span class="badge">Required</span>
+        </div>
+        <div class="card-body">
+
+          <div class="grid-4">
+            <div class="field">
+              <label>ARR <span class="unit">$M</span> <span class="req">*</span></label>
+              <input type="number" id="arr" step="0.1" value="25.2" required>
+            </div>
+            <div class="field">
+              <label>ARR Growth <span class="unit">% YoY</span> <span class="req">*</span></label>
+              <input type="number" id="arr_growth" step="0.1" value="52.0" required>
+            </div>
+            <div class="field">
+              <label>NRR <span class="unit">%</span> <span class="req">*</span></label>
+              <input type="number" id="nrr" step="0.1" value="118.0" required>
+            </div>
+            <div class="field">
+              <label>GRR <span class="unit">%</span> <span class="req">*</span></label>
+              <input type="number" id="grr" step="0.1" value="94.0" required>
+            </div>
+          </div>
+
+          <hr class="card-divider">
+
+          <div class="grid-5" style="margin-bottom:0">
+            <div class="field">
+              <label>Gross Margin <span class="unit">%</span> <span class="req">*</span></label>
+              <input type="number" id="gross_margin" step="0.1" value="76.0" required>
+            </div>
+            <div class="field">
+              <label>EBITDA Margin <span class="unit">%</span> <span class="req">*</span></label>
+              <input type="number" id="ebitda_margin" step="0.1" value="-15.0" required>
+            </div>
+            <div class="field">
+              <label>Burn Multiple <span class="unit">×</span> <span class="req">*</span></label>
+              <input type="number" id="burn_multiple" step="0.01" value="0.7" required>
+            </div>
+            <div class="field">
+              <label>Magic Number <span class="unit">×</span> <span class="req">*</span></label>
+              <input type="number" id="magic_number" step="0.01" value="1.1" required>
+            </div>
+            <div class="field">
+              <label>CAC Payback <span class="unit">months</span> <span class="req">*</span></label>
+              <input type="number" id="cac_payback_months" step="0.1" value="16.0" required>
+            </div>
+          </div>
+
+          <hr class="card-divider">
+
+          <div class="grid-4">
+            <div class="field">
+              <label>LTV : CAC <span class="unit">ratio</span> <span class="req">*</span></label>
+              <input type="number" id="ltv_cac" step="0.01" value="3.8" required>
+            </div>
+            <div class="field">
+              <label>Top-10 Customer Conc. <span class="unit">% ARR · optional</span></label>
+              <input type="number" id="customer_concentration" step="0.1" placeholder="—">
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── Historical Series (optional) ── -->
+      <div class="card">
+        <div class="card-head"><h2>Historical Data</h2><span class="badge" style="background:#f0fdf4;color:#166534">Optional</span></div>
+        <div class="card-body">
+          <label class="toggle-row">
+            <input type="checkbox" id="enableSeries">
+            <div>
+              <div class="toggle-label">Add multi-period series for trend analysis</div>
+              <div class="toggle-sub">Enables improving / flat / declining trend on each metric</div>
+            </div>
+          </label>
+
+          <div class="collapsible" id="seriesPanel">
+            <table class="series-table">
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  <th>Period 1 <span class="period-label">(oldest)</span></th>
+                  <th>Period 2</th>
+                  <th>Period 3 <span class="period-label">(most recent)</span></th>
+                </tr>
+              </thead>
+              <tbody id="seriesBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="submit" class="btn-primary" id="submitBtn">Run Analysis →</button>
+        <button type="button" class="btn-cancel" id="cancelBtn" style="display:none;" onclick="cancelAnalysis()">✕ Cancel</button>
+        <button type="button" class="btn-ghost" id="saveBtn" onclick="saveDraft()">Save Case</button>
+        <button type="button" class="btn-ghost" onclick="resetSample()">Reset to Sample</button>
+        <span id="saveToast" style="font-size:12px;color:#16a34a;display:none;"></span>
+        <span class="api-note">JSON API: <code>POST /analyze/json</code></span>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    const SAMPLE = {{ sample | safe }};
+
+    const SERIES_METRICS = [
+      { key: "arr_growth",         label: "ARR Growth",    unit: "%" },
+      { key: "nrr",                label: "NRR",           unit: "%" },
+      { key: "grr",                label: "GRR",           unit: "%" },
+      { key: "gross_margin",       label: "Gross Margin",  unit: "%" },
+      { key: "ebitda_margin",      label: "EBITDA Margin", unit: "%" },
+      { key: "burn_multiple",      label: "Burn Multiple", unit: "×" },
+      { key: "magic_number",       label: "Magic Number",  unit: "×" },
+      { key: "cac_payback_months", label: "CAC Payback",   unit: "mo" },
+      { key: "ltv_cac",            label: "LTV:CAC",       unit: "×" },
+    ];
+
+    // Build series table rows
+    const tbody = document.getElementById('seriesBody');
+    SERIES_METRICS.forEach(m => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${m.label} <span style="color:#94a3b8;font-size:11px">(${m.unit})</span></td>
+        <td><input type="number" step="0.01" id="s_${m.key}_0" placeholder="—"></td>
+        <td><input type="number" step="0.01" id="s_${m.key}_1" placeholder="—"></td>
+        <td><input type="number" step="0.01" id="s_${m.key}_2" placeholder="—"></td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    // Toggle series panel
+    document.getElementById('enableSeries').addEventListener('change', function() {
+      document.getElementById('seriesPanel').classList.toggle('open', this.checked);
+      if (this.checked) populateSeriesFromSample();
+    });
+
+    function populateSeriesFromSample() {
+      if (!SAMPLE.series) return;
+      SERIES_METRICS.forEach(m => {
+        const s = SAMPLE.series[m.key];
+        if (!s) return;
+        for (let i = 0; i < 3; i++) {
+          const el = document.getElementById(`s_${m.key}_${i}`);
+          if (el && s[i] !== undefined) el.value = s[i];
+        }
+      });
+    }
+
+    function resetSample() {
+      document.getElementById('buyer_segment').value = SAMPLE.buyer_segment;
+      document.getElementById('stage').value = SAMPLE.stage;
+      document.getElementById('vertical').value = SAMPLE.vertical;
+      document.getElementById('size_band').value = SAMPLE.size_band;
+      document.getElementById('price').value = SAMPLE.price ?? '';
+      document.getElementById('return_target').value = SAMPLE.return_target;
+      document.getElementById('hold_years').value = SAMPLE.hold_years;
+      document.getElementById('thesis_tags').value = (SAMPLE.thesis_tags || []).join(', ');
+      document.getElementById('arr').value = SAMPLE.arr;
+      document.getElementById('arr_growth').value = SAMPLE.arr_growth;
+      document.getElementById('nrr').value = SAMPLE.nrr;
+      document.getElementById('grr').value = SAMPLE.grr;
+      document.getElementById('gross_margin').value = SAMPLE.gross_margin;
+      document.getElementById('ebitda_margin').value = SAMPLE.ebitda_margin;
+      document.getElementById('burn_multiple').value = SAMPLE.burn_multiple;
+      document.getElementById('magic_number').value = SAMPLE.magic_number;
+      document.getElementById('cac_payback_months').value = SAMPLE.cac_payback_months;
+      document.getElementById('ltv_cac').value = SAMPLE.ltv_cac;
+      document.getElementById('customer_concentration').value = SAMPLE.customer_concentration_top10_pct ?? '';
+      document.getElementById('company_description').value = SAMPLE.company_description ?? '';
+      // Enable series
+      const cb = document.getElementById('enableSeries');
+      if (!cb.checked) { cb.checked = true; document.getElementById('seriesPanel').classList.add('open'); }
+      populateSeriesFromSample();
+    }
+
+    document.getElementById('mainForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      const payload = buildPayload();
+
+      // Persist for "Edit & Rerun" on the result page
+      localStorage.setItem('lastPayload', JSON.stringify(payload));
+      localStorage.setItem('lastGeminiModel', document.getElementById('gemini_model').value);
+
+      const formData = new FormData();
+      formData.append('payload', JSON.stringify(payload));
+      formData.append('gemini_model', document.getElementById('gemini_model').value);
+
+      const submitBtn = document.getElementById('submitBtn');
+      const cancelBtn = document.getElementById('cancelBtn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Analyzing… this may take 15–30s';
+      cancelBtn.style.display = 'inline-block';
+
+      abortController = new AbortController();
+
+      fetch('/analyze', { method: 'POST', body: formData, signal: abortController.signal })
+        .then(res => res.text())
+        .then(html => { document.open(); document.write(html); document.close(); })
+        .catch(err => {
+          if (err.name === 'AbortError') return; // user cancelled — stay on page
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Run Analysis →';
+          cancelBtn.style.display = 'none';
+          alert('Error: ' + err.message);
+        });
+    });
+
+    let abortController = null;
+
+    function buildPayload() {
+      const tagsRaw = document.getElementById('thesis_tags').value.trim();
+      const thesis_tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : [];
+      const priceRaw = document.getElementById('price').value.trim();
+      const concRaw  = document.getElementById('customer_concentration').value.trim();
+      const payload = {
+        buyer_segment: document.getElementById('buyer_segment').value,
+        stage:         document.getElementById('stage').value,
+        vertical:      document.getElementById('vertical').value,
+        size_band:     document.getElementById('size_band').value,
+        price:         priceRaw === '' ? null : parseFloat(priceRaw),
+        return_target: parseFloat(document.getElementById('return_target').value),
+        hold_years:    parseInt(document.getElementById('hold_years').value),
+        thesis_tags,
+        arr:                parseFloat(document.getElementById('arr').value),
+        arr_growth:         parseFloat(document.getElementById('arr_growth').value),
+        nrr:                parseFloat(document.getElementById('nrr').value),
+        grr:                parseFloat(document.getElementById('grr').value),
+        gross_margin:       parseFloat(document.getElementById('gross_margin').value),
+        ebitda_margin:      parseFloat(document.getElementById('ebitda_margin').value),
+        burn_multiple:      parseFloat(document.getElementById('burn_multiple').value),
+        magic_number:       parseFloat(document.getElementById('magic_number').value),
+        cac_payback_months: parseFloat(document.getElementById('cac_payback_months').value),
+        ltv_cac:            parseFloat(document.getElementById('ltv_cac').value),
+      };
+      if (concRaw !== '') payload.customer_concentration_top10_pct = parseFloat(concRaw);
+      const desc = document.getElementById('company_description').value.trim();
+      if (desc) payload.company_description = desc;
+      if (document.getElementById('enableSeries').checked) {
+        const series = {};
+        SERIES_METRICS.forEach(m => {
+          const vals = [0,1,2].map(i => {
+            const v = document.getElementById(`s_${m.key}_${i}`).value.trim();
+            return v === '' ? null : parseFloat(v);
+          });
+          if (vals.some(v => v !== null)) series[m.key] = vals;
+        });
+        if (Object.keys(series).length > 0) payload.series = series;
+      }
+      return payload;
+    }
+
+    async function saveDraft() {
+      const name = prompt('Name this case:', 'Untitled Case');
+      if (name === null) return; // cancelled
+      const btn   = document.getElementById('saveBtn');
+      const toast = document.getElementById('saveToast');
+      btn.disabled = true;
+      try {
+        const payload = buildPayload();
+        const resp = await fetch('/cases/save-draft', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name.trim() || 'Untitled Case', request_json: JSON.stringify(payload) }),
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+        const { id } = await resp.json();
+        toast.innerHTML = `✓ Saved — <a href="/cases/${id}" style="color:#16a34a;font-weight:600;">View in My Cases</a>`;
+        toast.style.display = 'inline';
+        setTimeout(() => { toast.style.display = 'none'; }, 6000);
+      } catch (err) {
+        alert('Save failed: ' + err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function cancelAnalysis() {
+      if (abortController) abortController.abort();
+      const submitBtn = document.getElementById('submitBtn');
+      const cancelBtn = document.getElementById('cancelBtn');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Run Analysis →';
+      cancelBtn.style.display = 'none';
+    }
+
+    // Pre-populate: use last submitted payload if available, else sample
+    const savedPayload = localStorage.getItem('lastPayload');
+    const savedModel   = localStorage.getItem('lastGeminiModel');
+    if (savedPayload) {
+      try {
+        const saved = JSON.parse(savedPayload);
+        // Merge into SAMPLE so resetSample() helper still works for any missing keys
+        Object.assign(SAMPLE, saved);
+        if (savedModel) document.getElementById('gemini_model').value = savedModel;
+      } catch(e) {}
+    }
+    resetSample();
+  </script>
+</body>
+</html>
