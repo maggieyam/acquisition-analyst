@@ -12,12 +12,35 @@ import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
+from pydantic import BaseModel, Field, model_validator
+
 from .exceptions import ConfigError
 from .llm import dd_questions as ddq
 from .llm import memo as memo_mod
-from .llm.gateway import DEFAULT_MODEL, GeminiGateway, keys_from_env
+from .llm.gateway import DEFAULT_MODEL, LLMGateway, _gateway_for
 from .models import AnalysisRequest, DDQuestion, Findings
 from .scoring import BenchmarkSet, grade, validate
+
+
+class EngagementContext(BaseModel):
+    """Buyer-specific config passed to each analysis call.
+
+    buyer_label: freeform identifier echoed in output (e.g. "Blackstone Growth")
+    weights: full metric weight profile — must sum to 1.0
+    benchmarks: cohort benchmark data; defaults to the packaged SaaS dataset
+    """
+    model_config = {"arbitrary_types_allowed": True}
+
+    buyer_label: str
+    weights: dict[str, float]
+    benchmarks: BenchmarkSet = Field(default_factory=BenchmarkSet.default)
+
+    @model_validator(mode="after")
+    def _weights_sum_to_one(self) -> "EngagementContext":
+        total = sum(self.weights.values())
+        if abs(total - 1.0) > 0.01:
+            raise ValueError(f"weights must sum to 1.0 (got {total:.4f})")
+        return self
 
 logger = logging.getLogger("acquisition_analyst")
 
@@ -25,25 +48,23 @@ logger = logging.getLogger("acquisition_analyst")
 class Analyst:
     """M&A due-diligence analyst.
 
-    Construct with explicit API keys, or use `Analyst.from_env()` to read
-    GOOGLE_API_KEY / GOOGLE_API_KEY_2 / … from the environment. With no keys
-    the deterministic engine still works (`analyze` runs offline); LLM
-    features raise ConfigError.
+    By default uses Gemini: pass api_keys explicitly, or omit to read
+    GOOGLE_API_KEY / GOOGLE_API_KEY_2 / … from the environment automatically.
+    To use a different provider, pass any `gateway` implementing LLMGateway.
+    With neither, the deterministic engine still works (`analyze` runs
+    offline); LLM features raise ConfigError.
     """
 
     def __init__(
         self,
         api_keys: list[str] | None = None,
         model: str = DEFAULT_MODEL,
-        benchmarks: BenchmarkSet | None = None,
+        gateway: LLMGateway | None = None,
     ):
-        self._gateway = GeminiGateway(api_keys, model) if api_keys else None
-        self._benchmarks = benchmarks or BenchmarkSet.default()
-
-    @classmethod
-    def from_env(cls, model: str = DEFAULT_MODEL,
-                 benchmarks: BenchmarkSet | None = None) -> "Analyst":
-        return cls(api_keys=keys_from_env() or None, model=model, benchmarks=benchmarks)
+        if gateway is not None:
+            self._gateway = gateway
+        else:
+            self._gateway = _gateway_for(model, api_keys)
 
     @property
     def has_llm(self) -> bool:
@@ -55,7 +76,7 @@ class Analyst:
 
     # ── Core pipeline ─────────────────────────────────────────────────────────
 
-    def analyze(self, request: AnalysisRequest, *,
+    def analyze(self, request: AnalysisRequest, engagement: EngagementContext, *,
                 existing_dd_questions: list[dict] | None = None) -> Findings:
         """Run the full analysis pipeline.
 
@@ -68,17 +89,17 @@ class Analyst:
         # 1. Validate
         validation = validate(request)
         if not validation.valid:
-            return Findings(deal_context=_deal_context(request), validation=validation)
+            return Findings(deal_context=_deal_context(request, engagement.buyer_label), validation=validation)
 
         # 2. Benchmark lookup (with cohort widening)
-        cohort, bm_data = self._benchmarks.lookup(request.stage, request.vertical, request.size_band)
+        cohort, bm_data = engagement.benchmarks.lookup(request.stage, request.vertical, request.size_band)
 
         # 3. Grade → scorecard → recommendation
-        multiples = self._benchmarks.valuation_multiples(request.stage, request.vertical, request.size_band)
-        result = grade(request, cohort, bm_data, multiples)
+        multiples = engagement.benchmarks.valuation_multiples(request.stage, request.vertical, request.size_band)
+        result = grade(request, cohort, bm_data, multiples, engagement.weights, engagement.buyer_label)
 
         findings = Findings(
-            deal_context=_deal_context(request),
+            deal_context=_deal_context(request, engagement.buyer_label),
             validation=validation,
             benchmark_cohort=cohort,
             graded_metrics=result.graded_metrics,
@@ -143,10 +164,10 @@ class Analyst:
                             findings: Findings | dict) -> list[dict]:
         return ddq.review_questions(self._require_gateway(), open_questions, _as_dict(findings))
 
-    def _require_gateway(self) -> GeminiGateway:
+    def _require_gateway(self) -> LLMGateway:
         if self._gateway is None:
             raise ConfigError(
-                "This feature requires an LLM. Pass api_keys to Analyst(), or set GOOGLE_API_KEY and use Analyst.from_env().",
+                "This feature requires an LLM. Pass api_keys or a gateway to Analyst(), or set GOOGLE_API_KEY in the environment.",
             )
         return self._gateway
 
@@ -157,9 +178,9 @@ def _as_dict(findings: Findings | dict) -> dict:
     return findings
 
 
-def _deal_context(req: AnalysisRequest) -> dict:
+def _deal_context(req: AnalysisRequest, buyer_label: str) -> dict:
     return {
-        "buyer_segment": req.buyer_segment,
+        "buyer_label": buyer_label,
         "thesis_tags": req.thesis_tags,
         "price": req.price,
         "return_target": req.return_target,

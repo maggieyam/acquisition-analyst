@@ -251,7 +251,7 @@
           <div class="grid-4">
             <div class="field">
               <label>Buyer Segment <span class="req">*</span></label>
-              <select id="buyer_segment" required>
+              <select id="buyer_type" required>
                 <option value="growth_equity">Growth Equity</option>
                 <option value="lmm">Lower Middle Market</option>
                 <option value="strategic">Strategic / Corporate</option>
@@ -309,9 +309,13 @@
             </div>
             <div class="field">
               <label>AI Report Model</label>
-              <select id="gemini_model" name="gemini_model">
-                <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
-                <option value="gemini-3.1-pro">Gemini 3.1 Pro</option>
+              <select id="llm_model" name="llm_model">
+                {% for m in available_models %}
+                <option value="{{ m.value }}">{{ m.label }}</option>
+                {% endfor %}
+                {% if not available_models %}
+                <option value="" disabled>No providers installed</option>
+                {% endif %}
               </select>
             </div>
           </div>
@@ -486,7 +490,7 @@
     }
 
     function resetSample() {
-      document.getElementById('buyer_segment').value = SAMPLE.buyer_segment;
+      document.getElementById('buyer_type').value = SAMPLE.buyer_type;
       document.getElementById('stage').value = SAMPLE.stage;
       document.getElementById('vertical').value = SAMPLE.vertical;
       document.getElementById('size_band').value = SAMPLE.size_band;
@@ -519,11 +523,11 @@
 
       // Persist for "Edit & Rerun" on the result page
       localStorage.setItem('lastPayload', JSON.stringify(payload));
-      localStorage.setItem('lastGeminiModel', document.getElementById('gemini_model').value);
+      localStorage.setItem('lastLlmModel', document.getElementById('llm_model').value);
 
       const formData = new FormData();
       formData.append('payload', JSON.stringify(payload));
-      formData.append('gemini_model', document.getElementById('gemini_model').value);
+      formData.append('llm_model', document.getElementById('llm_model').value);
 
       const submitBtn = document.getElementById('submitBtn');
       const cancelBtn = document.getElementById('cancelBtn');
@@ -553,7 +557,7 @@
       const priceRaw = document.getElementById('price').value.trim();
       const concRaw  = document.getElementById('customer_concentration').value.trim();
       const payload = {
-        buyer_segment: document.getElementById('buyer_segment').value,
+        buyer_type: document.getElementById('buyer_type').value,
         stage:         document.getElementById('stage').value,
         vertical:      document.getElementById('vertical').value,
         size_band:     document.getElementById('size_band').value,
@@ -625,13 +629,13 @@
 
     // Pre-populate: use last submitted payload if available, else sample
     const savedPayload = localStorage.getItem('lastPayload');
-    const savedModel   = localStorage.getItem('lastGeminiModel');
+    const savedModel   = localStorage.getItem('lastLlmModel');
     if (savedPayload) {
       try {
         const saved = JSON.parse(savedPayload);
         // Merge into SAMPLE so resetSample() helper still works for any missing keys
         Object.assign(SAMPLE, saved);
-        if (savedModel) document.getElementById('gemini_model').value = savedModel;
+        if (savedModel) document.getElementById('llm_model').value = savedModel;
       } catch(e) {}
     }
     resetSample();

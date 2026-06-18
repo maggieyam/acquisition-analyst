@@ -8,10 +8,9 @@ def test_valid_request_passes(sample_request):
 
 
 def test_invalid_enum_fields_block(sample_request):
-    req = sample_request.model_copy(update={"buyer_segment": "hedge_fund", "stage": "seed"})
+    req = sample_request.model_copy(update={"stage": "seed"})
     result = validate(req)
     assert not result.valid
-    assert any("buyer_segment" in m for m in result.missing)
     assert any("stage" in m for m in result.missing)
 
 

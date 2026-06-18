@@ -22,7 +22,6 @@ class MetricSeries(BaseModel):
 
 class AnalysisRequest(BaseModel):
     # Deal context
-    buyer_segment: str = Field(..., description="growth_equity | lmm | strategic")
     thesis_tags: list[str] = Field(default_factory=list)
     price: Optional[float] = Field(None, description="Total deal price (USD M). Null → solve-for-price.")
     return_target: float = Field(..., description="Target IRR, e.g. 25.0 for 25%")
@@ -76,7 +75,7 @@ class FamilyScore(BaseModel):
 
 
 class Scorecard(BaseModel):
-    weights_profile: str
+    buyer_label: str
     per_family: dict[str, FamilyScore]
     composite: float
     band: str

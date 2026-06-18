@@ -15,47 +15,6 @@ HEADLINE_METRICS = [
 ]
 
 
-# ── Weight profiles by buyer_segment ─────────────────────────────────────────
-
-WEIGHT_PROFILES: dict[str, dict[str, float]] = {
-    "growth_equity": {
-        "arr_growth":         0.20,
-        "nrr":                0.15,
-        "rule_of_40":         0.10,
-        "magic_number":       0.10,
-        "burn_multiple":      0.10,
-        "gross_margin":       0.10,
-        "ltv_cac":            0.10,
-        "grr":                0.05,
-        "cac_payback_months": 0.05,
-        "ebitda_margin":      0.05,
-    },
-    "lmm": {
-        "ebitda_margin":      0.20,
-        "gross_margin":       0.15,
-        "burn_multiple":      0.15,
-        "nrr":                0.15,
-        "arr_growth":         0.10,
-        "grr":                0.10,
-        "ltv_cac":            0.05,
-        "cac_payback_months": 0.05,
-        "magic_number":       0.03,
-        "rule_of_40":         0.02,
-    },
-    "strategic": {
-        "nrr":                0.20,
-        "grr":                0.15,
-        "arr_growth":         0.15,
-        "gross_margin":       0.15,
-        "ltv_cac":            0.10,
-        "burn_multiple":      0.05,
-        "ebitda_margin":      0.05,
-        "cac_payback_months": 0.05,
-        "magic_number":       0.05,
-        "rule_of_40":         0.05,
-    },
-}
-
 # Metric families for per-family scorecard display
 METRIC_FAMILIES: dict[str, list[str]] = {
     "growth":         ["arr_growth", "rule_of_40"],
@@ -201,9 +160,11 @@ def _band_for_composite(composite: float) -> str:
     return "Weak"
 
 
-def _build_scorecard(graded: dict[str, GradedMetric], buyer_segment: str) -> Scorecard:
-    weights = WEIGHT_PROFILES.get(buyer_segment, WEIGHT_PROFILES["growth_equity"])
-
+def _build_scorecard(
+    graded: dict[str, GradedMetric],
+    weights: dict[str, float],
+    buyer_label: str,
+) -> Scorecard:
     weighted_sum = 0.0
     weight_total = 0.0
     for metric, weight in weights.items():
@@ -226,7 +187,7 @@ def _build_scorecard(graded: dict[str, GradedMetric], buyer_segment: str) -> Sco
             )
 
     return Scorecard(
-        weights_profile=buyer_segment,
+        buyer_label=buyer_label,
         per_family=per_family,
         composite=round(composite, 3),
         band=_band_for_composite(composite),
@@ -283,7 +244,7 @@ def _compute_recommendation(
             conditions.append("Confirm metrics trend remains stable through confirmatory diligence.")
 
     rationale_parts = [
-        f"Composite scorecard of {composite:.2f} ({scorecard.band}) against the {req.buyer_segment} weight profile.",
+        f"Composite scorecard of {composite:.2f} ({scorecard.band}) for {scorecard.buyer_label}.",
         f"Overall metric trajectory is {overall_trend}.",
     ]
     if risk_flags:
@@ -323,6 +284,8 @@ def grade(
     cohort: BenchmarkCohort,
     benchmark_data: dict,
     valuation_multiples: dict,
+    weights: dict[str, float],
+    buyer_label: str,
 ) -> GradingResult:
     ck = cohort.cohort_key
     cc = cohort.confidence
@@ -354,7 +317,7 @@ def grade(
     graded["rule_of_40"] = rule_of_40_metric
 
     risk_flags = _compute_risk_flags(req, graded)
-    scorecard = _build_scorecard(graded, req.buyer_segment)
+    scorecard = _build_scorecard(graded, weights, buyer_label)
     recommendation = _compute_recommendation(req, scorecard, graded, risk_flags, valuation_multiples)
 
     return GradingResult(

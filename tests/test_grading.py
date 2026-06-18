@@ -3,11 +3,17 @@ from acquisition_analyst.scoring import BenchmarkSet, grade
 from acquisition_analyst.scoring.grading import _compute_trend, _grade_value
 
 
+_TEST_WEIGHTS = {
+    "arr_growth": 0.20, "nrr": 0.15, "rule_of_40": 0.10, "magic_number": 0.10,
+    "burn_multiple": 0.10, "gross_margin": 0.10, "ltv_cac": 0.10,
+    "grr": 0.05, "cac_payback_months": 0.05, "ebitda_margin": 0.05,
+}
+
 def _grade(req):
     bs = BenchmarkSet.default()
     cohort, data = bs.lookup(req.stage, req.vertical, req.size_band)
     multiples = bs.valuation_multiples(req.stage, req.vertical, req.size_band)
-    return grade(req, cohort, data, multiples)
+    return grade(req, cohort, data, multiples, _TEST_WEIGHTS, "Test Buyer")
 
 
 # ── Band assignment ───────────────────────────────────────────────────────────

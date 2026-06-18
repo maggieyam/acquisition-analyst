@@ -8,7 +8,6 @@ REQUIRED_METRICS = [
     "burn_multiple", "gross_margin", "ebitda_margin",
 ]
 
-VALID_BUYER_SEGMENTS = {"growth_equity", "lmm", "strategic"}
 VALID_STAGES = {"early", "growth", "late"}
 VALID_VERTICALS = {"vertical_saas", "horizontal_saas", "fintech", "healthtech", "other"}
 VALID_SIZE_BANDS = {"0-5M", "5-10M", "10-25M", "25-50M", "50-100M", "100M+"}
@@ -31,8 +30,6 @@ def validate(req: AnalysisRequest) -> ValidationResult:
     missing: list[str] = []
     warnings: list[str] = []
 
-    if req.buyer_segment not in VALID_BUYER_SEGMENTS:
-        missing.append(f"buyer_segment must be one of {sorted(VALID_BUYER_SEGMENTS)}, got '{req.buyer_segment}'")
     if req.stage not in VALID_STAGES:
         missing.append(f"stage must be one of {sorted(VALID_STAGES)}, got '{req.stage}'")
     if req.vertical not in VALID_VERTICALS:

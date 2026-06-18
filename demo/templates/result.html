@@ -686,7 +686,7 @@
   </div>
   <div class="deal-pill">
     <span class="lbl">Buyer</span>
-    <span class="val">{{ (dc.buyer_segment or "—") | replace("_", " ") | title }}</span>
+    <span class="val">{{ dc.buyer_label or "—" }}</span>
   </div>
   {% if dc.return_target %}
   <div class="deal-pill">
@@ -820,7 +820,7 @@
         </div>
         {% endfor %}
         <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border-lt); font-size:11px; color:var(--muted);">
-          Weight profile: <span style="font-weight:600;color:var(--text);">{{ sc.weights_profile | replace("_"," ") | title }}</span>
+          Buyer: <span style="font-weight:600;color:var(--text);">{{ sc.buyer_label }}</span>
           &nbsp;·&nbsp; Composite: <span style="font-weight:800;color:var(--text);">{{ "%.3f"|format(sc.composite) }}</span>
         </div>
       </div>

@@ -4,7 +4,7 @@ template renderer (`template_memo`) that needs no LLM at all."""
 from __future__ import annotations
 
 from ..models import Findings
-from .gateway import GeminiGateway
+from .gateway import LLMGateway
 
 ASSESSMENT_LABELS = {
     "buy": "BUY",
@@ -18,7 +18,7 @@ You are a senior partner at a PE firm writing an Investment Committee note. Use 
 """
 
 _REPORT_TEMPLATE = """\
-Write a concise Investment Committee note. Buyer type: {buyer_segment}. Thesis: {thesis_tags}.
+Write a concise Investment Committee note. Buyer: {buyer_label}. Thesis: {thesis_tags}.
 
 Style: bullet-heavy, professional PE style. Every claim cites a specific number with benchmark context (e.g. "NRR of 118% vs. 104% median for growth-stage vertical SaaS"). No prose padding. No section introductions. Start each section with bullets immediately.
 
@@ -61,7 +61,7 @@ Two sub-sections. Only include if resolved DD questions are provided; otherwise 
 {dd_context}"""
 
 
-def write_memo(gateway: GeminiGateway, findings: Findings,
+def write_memo(gateway: LLMGateway, findings: Findings,
                dd_questions: list[dict] | None = None) -> str:
     """LLM-written IC memo. Raises typed LLM errors on failure."""
     dc = findings.deal_context
@@ -81,7 +81,7 @@ def write_memo(gateway: GeminiGateway, findings: Findings,
         dd_context = ""
 
     user_msg = _REPORT_TEMPLATE.format(
-        buyer_segment=dc["buyer_segment"],
+        buyer_label=dc["buyer_label"],
         thesis_tags=", ".join(dc.get("thesis_tags") or ["(none)"]),
         findings_json=findings_json,
         dd_context=dd_context,
@@ -124,7 +124,7 @@ def template_memo(findings: Findings, note: str | None = None) -> str:
     lines.append(rec.rationale)
     lines.append(
         f"\nComposite scorecard: **{sc.composite:.2f} / 4.00** ({sc.band}) "
-        f"under the `{sc.weights_profile}` weight profile."
+        f"under the `{sc.buyer_label}` weight profile."
     )
     if findings.risk_flags:
         lines.append(f"\n{len(findings.risk_flags)} risk flag(s) require attention (see Risk Register).")
@@ -168,7 +168,7 @@ def template_memo(findings: Findings, note: str | None = None) -> str:
     lines.append("|--------|---------|-----------|------|")
     for family, fs in sc.per_family.items():
         lines.append(f"| {family.title()} | {', '.join(fs.metrics)} | {fs.composite:.2f} | {fs.band} |")
-    lines.append(f"\n**Overall Composite: {sc.composite:.3f} ({sc.band})** — Weight profile: `{sc.weights_profile}`")
+    lines.append(f"\n**Overall Composite: {sc.composite:.3f} ({sc.band})** — Weight profile: `{sc.buyer_label}`")
 
     # ── 4. Risk Register ──────────────────────────────────────────────────────
     lines.append("\n## 4. Risk Register")

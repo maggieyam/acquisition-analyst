@@ -17,11 +17,41 @@ from fastapi.templating import Jinja2Templates
 
 from acquisition_analyst import (
     DEFAULT_MODEL,
-    SUPPORTED_MODELS,
+    GEMINI_FLASH, GEMINI_PRO,
+    CLAUDE_SONNET, CLAUDE_HAIKU, CLAUDE_OPUS,
+    GPT_4O, GPT_4O_MINI,
     AnalysisRequest,
     Analyst,
     ConfigError,
+    EngagementContext,
 )
+
+# Reference weight profiles — callers supply their own; these are demo defaults only
+_WEIGHT_PROFILES = {
+    "growth_equity": {
+        "arr_growth": 0.20, "nrr": 0.15, "rule_of_40": 0.10,
+        "magic_number": 0.10, "burn_multiple": 0.10, "gross_margin": 0.10,
+        "ltv_cac": 0.10, "grr": 0.05, "cac_payback_months": 0.05, "ebitda_margin": 0.05,
+    },
+    "lmm": {
+        "ebitda_margin": 0.20, "gross_margin": 0.15, "burn_multiple": 0.15,
+        "nrr": 0.15, "arr_growth": 0.10, "grr": 0.10,
+        "ltv_cac": 0.05, "cac_payback_months": 0.05, "magic_number": 0.03, "rule_of_40": 0.02,
+    },
+    "strategic": {
+        "nrr": 0.20, "grr": 0.15, "arr_growth": 0.15, "gross_margin": 0.15,
+        "ltv_cac": 0.10, "burn_multiple": 0.05, "ebitda_margin": 0.05,
+        "cac_payback_months": 0.05, "magic_number": 0.05, "rule_of_40": 0.05,
+    },
+}
+
+
+def _make_engagement(buyer_type: str, buyer_label: str | None = None) -> EngagementContext:
+    weights = _WEIGHT_PROFILES.get(buyer_type, _WEIGHT_PROFILES["growth_equity"])
+    return EngagementContext(
+        buyer_label=buyer_label or buyer_type.replace("_", " ").title(),
+        weights=weights,
+    )
 
 from .case_store import CaseStore
 
@@ -31,15 +61,51 @@ app = FastAPI(title="M&A DD Metric Analyzer (demo)", version="0.1.0")
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 
+def _available_models() -> list[dict]:
+    """Return models whose provider package is installed."""
+    models = []
+    try:
+        from google import genai  # noqa
+        models += [
+            {"value": GEMINI_FLASH, "label": "Gemini 3.5 Flash"},
+            {"value": GEMINI_PRO,   "label": "Gemini 3.1 Pro"},
+        ]
+    except ImportError:
+        pass
+    try:
+        import anthropic  # noqa
+        models += [
+            {"value": CLAUDE_SONNET, "label": "Claude Sonnet 4.6"},
+            {"value": CLAUDE_HAIKU,  "label": "Claude Haiku 4.5"},
+            {"value": CLAUDE_OPUS,   "label": "Claude Opus 4.8"},
+        ]
+    except ImportError:
+        pass
+    try:
+        import openai  # noqa
+        models += [
+            {"value": GPT_4O,      "label": "GPT-4o"},
+            {"value": GPT_4O_MINI, "label": "GPT-4o Mini"},
+        ]
+    except ImportError:
+        pass
+    return models
+
+
+AVAILABLE_MODELS = _available_models()
+_AVAILABLE_MODEL_VALUES = {m["value"] for m in AVAILABLE_MODELS}
+_DEFAULT_AVAILABLE = AVAILABLE_MODELS[0]["value"] if AVAILABLE_MODELS else DEFAULT_MODEL
+
+
 def _make_analyst(model: str | None) -> Analyst:
-    selected = model if model in SUPPORTED_MODELS else DEFAULT_MODEL
-    return Analyst.from_env(model=selected)
+    selected = model if model in _AVAILABLE_MODEL_VALUES else _DEFAULT_AVAILABLE
+    return Analyst(model=selected)
 
 
 # ── Sample target (vertical SaaS, growth_equity, ~$25M ARR) ──────────────────
 SAMPLE_TARGET = {
     # Deal context
-    "buyer_segment": "growth_equity",
+    "buyer_type": "growth_equity",
     "thesis_tags": ["vertical-saas", "smb-focus", "land-and-expand"],
     "price": None,
     "return_target": 25.0,
@@ -81,7 +147,7 @@ async def index(request: Request):
     return templates.TemplateResponse(
         request,
         "index.html",
-        {"sample": json.dumps(SAMPLE_TARGET, indent=2)},
+        {"sample": json.dumps(SAMPLE_TARGET, indent=2), "available_models": AVAILABLE_MODELS},
     )
 
 
@@ -90,16 +156,18 @@ async def analyze_form(request: Request):
     """Handle HTML form submission."""
     form_data = await request.form()
     raw_json = form_data.get("payload", "")
-    gemini_model = str(form_data.get("gemini_model", "")).strip() or None
+    llm_model = str(form_data.get("llm_model", "")).strip() or None
     try:
         data = json.loads(raw_json)
+        buyer_type = data.pop("buyer_type", "growth_equity")
         req = AnalysisRequest(**data)
     except Exception as e:
         return HTMLResponse(content=f"<h2>Input Error</h2><pre>{e}</pre>", status_code=400)
 
-    analyst = _make_analyst(gemini_model)
+    analyst = _make_analyst(llm_model)
+    engagement = _make_engagement(buyer_type)
     try:
-        findings = analyst.analyze(req)
+        findings = analyst.analyze(req, engagement)
     except Exception as e:
         return HTMLResponse(content=f"<h2>Analysis Error</h2><pre>{e}</pre>", status_code=500)
 
@@ -136,7 +204,7 @@ async def case_view(request: Request, case_id: str):
     ctx = _result_context_from_dict(
         findings_data,
         report_html,
-        gemini_model=record.get("gemini_model", ""),
+        llm_model=record.get("llm_model", ""),
         request_json=json.dumps(record.get("request", {})),
         case_id=case_id,
         case_name=record["name"],
@@ -151,8 +219,8 @@ async def case_save(request: Request):
     name          = str(body.get("name", "")).strip() or "Untitled Case"
     request_data  = json.loads(body.get("request_json", "{}"))
     findings_data = json.loads(body.get("findings_json", "{}"))
-    gemini_model  = str(body.get("gemini_model", ""))
-    case_id = case_store.save(name, request_data, findings_data, gemini_model)
+    llm_model  = str(body.get("llm_model", ""))
+    case_id = case_store.save(name, request_data, findings_data, llm_model)
     return JSONResponse({"id": case_id})
 
 
@@ -172,7 +240,7 @@ async def case_data(case_id: str):
     record = case_store.get(case_id)
     if not record:
         return JSONResponse({"error": "not found"}, status_code=404)
-    return JSONResponse({"request": record.get("request", {}), "gemini_model": record.get("gemini_model", "")})
+    return JSONResponse({"request": record.get("request", {}), "llm_model": record.get("llm_model", "")})
 
 
 @app.post("/dd-questions")
@@ -180,10 +248,10 @@ async def dd_questions_endpoint(request: Request):
     """Generate DD questions from findings JSON. Optionally saves to a case."""
     body          = await request.json()
     findings_dict = json.loads(body.get("findings_json", "{}"))
-    gemini_model  = str(body.get("gemini_model", "")).strip() or None
+    llm_model  = str(body.get("llm_model", "")).strip() or None
     case_id       = body.get("case_id")
 
-    analyst = _make_analyst(gemini_model)
+    analyst = _make_analyst(llm_model)
     try:
         questions = analyst.generate_dd_questions(findings_dict)
     except ConfigError as e:
@@ -203,9 +271,9 @@ async def dd_questions_review(request: Request):
     body           = await request.json()
     open_questions = body.get("open_questions", [])
     findings_dict  = json.loads(body.get("findings_json", "{}"))
-    gemini_model   = str(body.get("gemini_model", "")).strip() or None
+    llm_model   = str(body.get("llm_model", "")).strip() or None
 
-    analyst = _make_analyst(gemini_model)
+    analyst = _make_analyst(llm_model)
     try:
         resolved = analyst.review_dd_questions(open_questions, findings_dict)
     except ConfigError:
@@ -243,7 +311,9 @@ async def case_rerun(case_id: str, request: Request):
         return JSONResponse({"error": "Case not found"}, status_code=404)
 
     try:
-        req = AnalysisRequest(**record["request"])
+        req_data = dict(record["request"])
+        buyer_type = req_data.pop("buyer_type", "growth_equity")
+        req = AnalysisRequest(**req_data)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
 
@@ -251,9 +321,10 @@ async def case_rerun(case_id: str, request: Request):
     if record.get("findings"):
         existing_dd_questions = record["findings"].get("dd_questions") or None
 
-    analyst = _make_analyst(record.get("gemini_model") or None)
+    analyst = _make_analyst(record.get("llm_model") or None)
+    engagement = _make_engagement(buyer_type)
     try:
-        findings = analyst.analyze(req, existing_dd_questions=existing_dd_questions)
+        findings = analyst.analyze(req, engagement, existing_dd_questions=existing_dd_questions)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
 
@@ -270,10 +341,13 @@ async def case_delete(case_id: str):
 
 
 @app.post("/analyze/json")
-async def analyze_json(req: AnalysisRequest):
+async def analyze_json(request: Request):
     """JSON API endpoint — returns findings object + report_md."""
+    data = await request.json()
+    buyer_type = data.pop("buyer_type", "growth_equity")
     try:
-        findings = Analyst.from_env().analyze(req)
+        req = AnalysisRequest(**data)
+        findings = Analyst().analyze(req, _make_engagement(buyer_type))
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
     return JSONResponse(content=json.loads(findings.model_dump_json()))
@@ -295,7 +369,7 @@ def _auto_case_name(req) -> str:
         label = desc[:35].rstrip() + ("…" if len(desc) > 35 else "")
     else:
         parts = [p for p in [req.stage, req.vertical] if p]
-        label = " · ".join(parts) if parts else req.buyer_segment
+        label = " · ".join(parts) if parts else "Deal"
         if req.arr:
             label += f" · ${req.arr}M ARR"
     return f"{label} — {today}"
@@ -319,7 +393,7 @@ def _result_context(findings, active_model: str, request_json: str, case_id=None
     report_html   = _md_to_html(findings.report_md or "")
     return _result_context_from_dict(
         findings_dict, report_html,
-        gemini_model=active_model,
+        llm_model=active_model,
         request_json=request_json,
         case_id=case_id,
         case_name=case_name,
@@ -327,7 +401,7 @@ def _result_context(findings, active_model: str, request_json: str, case_id=None
 
 
 def _result_context_from_dict(findings_dict: dict, report_html: str, *,
-                               gemini_model: str, request_json: str,
+                               llm_model: str, request_json: str,
                                case_id=None, case_name=None) -> dict:
     rec = findings_dict.get("recommendation") or {}
     sc  = findings_dict.get("scorecard") or {}
@@ -342,7 +416,7 @@ def _result_context_from_dict(findings_dict: dict, report_html: str, *,
         "assessment":        rec.get("assessment", "unknown"),
         "composite":         sc.get("composite", 0),
         "band":              sc.get("band", ""),
-        "llm_model":         gemini_model,
+        "llm_model":         llm_model,
         "case_id":           case_id,
         "case_name":         case_name,
     }

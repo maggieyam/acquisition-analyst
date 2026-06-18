@@ -9,25 +9,38 @@ A buy-side M&A due diligence SDK for SaaS targets. Takes a target's metrics, ben
 - **All numbers are computed by code.** Grades, bands, scorecard, and recommendation are deterministic and reproducible. The LLM only writes prose and questions, grounded in the findings object — it cannot invent figures.
 - **No silent degradation.** LLM failures raise typed exceptions (`RateLimited`, `LLMUnavailable`). Absence of API keys is an explicit, documented offline mode.
 - **Bring your own benchmarks.** The packaged cohort dataset is the default; supply a `BenchmarkSet` to use your own.
+- **Provider-agnostic.** Gemini, Anthropic, and OpenAI are supported out of the box; plug in any provider via the `LLMGateway` protocol.
 
 ## Install
 
 ```bash
-pip install -e .            # SDK only
-pip install -e ".[demo]"    # SDK + demo web app
-pip install -e ".[dev]"     # + pytest
+pip install -e .                          # SDK core only (no LLM deps)
+pip install -e ".[gemini]"               # + Gemini support
+pip install -e ".[anthropic]"            # + Anthropic (Claude) support
+pip install -e ".[openai]"               # + OpenAI (GPT) support
+pip install -e ".[all-providers]"        # all three providers
+pip install -e ".[demo]"                 # + demo web app
+pip install -e ".[dev]"                  # + pytest
 ```
 
 ## SDK usage
 
 ```python
-from acquisition_analyst import Analyst, AnalysisRequest
+from acquisition_analyst import Analyst, AnalysisRequest, EngagementContext
 
-analyst = Analyst(api_keys=["AIza..."])        # explicit config
-# or: analyst = Analyst.from_env()             # reads GOOGLE_API_KEY, GOOGLE_API_KEY_2, …
-# or: analyst = Analyst()                      # offline — deterministic engine only
+# EngagementContext defines the buyer's identity and metric weight profile
+engagement = EngagementContext(
+    buyer_label="Acme Growth Fund",
+    weights={
+        "arr_growth": 0.20, "nrr": 0.15, "grr": 0.10,
+        "cac_payback_months": 0.10, "ltv_cac": 0.10,
+        "magic_number": 0.10, "burn_multiple": 0.10,
+        "gross_margin": 0.10, "ebitda_margin": 0.05,
+    },
+)
 
-findings = analyst.analyze(AnalysisRequest(**payload))
+analyst = Analyst()           # reads GOOGLE_API_KEY from env (Gemini, default)
+findings = analyst.analyze(AnalysisRequest(**payload), engagement)
 
 findings.scorecard.composite        # e.g. 3.42
 findings.recommendation.assessment  # buy | conditional_buy | hold | pass
@@ -35,15 +48,53 @@ findings.risk_flags                 # rule-based risk list
 findings.dd_questions               # LLM-generated (None in offline mode)
 ```
 
-Additional capabilities:
+### Provider selection
+
+The provider is auto-detected from the model name. Install the matching extra and set the right env var:
+
+```python
+from acquisition_analyst import Analyst, CLAUDE_SONNET, GPT_4O, GEMINI_FLASH
+
+# Anthropic — reads ANTHROPIC_API_KEY
+analyst = Analyst(model=CLAUDE_SONNET)
+
+# OpenAI — reads OPENAI_API_KEY
+analyst = Analyst(model=GPT_4O)
+
+# Gemini (default) — reads GOOGLE_API_KEY, GOOGLE_API_KEY_2, … (rotated on 429)
+analyst = Analyst(model=GEMINI_FLASH)
+
+# Explicit keys override env vars
+analyst = Analyst(api_keys=["sk-..."], model=CLAUDE_SONNET)
+
+# Custom provider — pass any object implementing LLMGateway
+analyst = Analyst(gateway=my_gateway)
+
+# No keys → offline mode: deterministic engine only; LLM features raise ConfigError
+analyst = Analyst()
+```
+
+Available model constants:
+
+| Constant | Model ID |
+|----------|----------|
+| `GEMINI_FLASH` | `gemini-3.5-flash` |
+| `GEMINI_PRO` | `gemini-3.1-pro` |
+| `CLAUDE_SONNET` | `claude-sonnet-4-6` |
+| `CLAUDE_HAIKU` | `claude-haiku-4-5-20251001` |
+| `CLAUDE_OPUS` | `claude-opus-4-8` |
+| `GPT_4O` | `gpt-4o` |
+| `GPT_4O_MINI` | `gpt-4o-mini` |
+
+### Additional capabilities
 
 ```python
 memo      = analyst.write_memo(findings)                       # LLM IC memo (markdown)
 questions = analyst.generate_dd_questions(findings)            # prioritized DD question list
 resolved  = analyst.review_dd_questions(open_questions, findings)
 
-# Re-run with answered DD questions carried forward (writes the IC memo):
-findings = analyst.analyze(request, existing_dd_questions=questions)
+# Re-run with answered DD questions carried forward (also writes the IC memo):
+findings = analyst.analyze(request, engagement, existing_dd_questions=questions)
 
 # Deterministic memo, no LLM required:
 from acquisition_analyst import template_memo
@@ -56,7 +107,8 @@ Custom benchmark data:
 from acquisition_analyst import Analyst, BenchmarkSet
 
 bs = BenchmarkSet.from_file("my_benchmarks.json")  # must include "_widened|default"
-analyst = Analyst(api_keys=[...], benchmarks=bs)
+engagement = EngagementContext(buyer_label="...", weights={...}, benchmarks=bs)
+analyst = Analyst(model=CLAUDE_SONNET)
 ```
 
 ### Error handling
@@ -65,25 +117,25 @@ analyst = Analyst(api_keys=[...], benchmarks=bs)
 from acquisition_analyst import ConfigError, RateLimited, LLMUnavailable
 
 try:
-    findings = analyst.analyze(request)
+    findings = analyst.analyze(request, engagement)
 except RateLimited:      # all keys hit 429
     ...
-except LLMUnavailable:   # model overloaded (503) — retry later
+except LLMUnavailable:   # model overloaded (503/529) — retry later
     ...
-except ConfigError:      # LLM feature used with no keys
+except ConfigError:      # LLM feature used with no keys or missing provider package
     ...
 ```
 
-Multiple API keys (`GOOGLE_API_KEY`, `GOOGLE_API_KEY_2`, …) are rotated automatically on 429/503.
+Gemini rotates across `GOOGLE_API_KEY`, `GOOGLE_API_KEY_2`, … automatically on 429/503.
 
 ## Architecture
 
 ```
 src/acquisition_analyst/
-├── client.py        # Analyst facade — the full pipeline reads top-to-bottom in analyze()
+├── client.py        # Analyst facade and EngagementContext — full pipeline in analyze()
 ├── models.py        # AnalysisRequest, Findings, and friends (Pydantic)
 ├── scoring/         # deterministic core: validation → benchmark lookup → grading
-├── llm/             # gateway (keys/rotation/errors), IC memo, DD questions
+├── llm/             # gateway (multi-provider/rotation/errors), IC memo, DD questions
 └── data/            # packaged benchmark cohorts
 ```
 
@@ -96,14 +148,13 @@ pip install -e ".[demo]"
 uvicorn demo.app:app --reload
 ```
 
-Open [http://localhost:8000](http://localhost:8000). A sample target (vertical SaaS, ~$25M ARR, growth_equity) is pre-filled. Set `GOOGLE_API_KEY` (e.g. in `.env`) to enable LLM features; without it the deterministic engine and template memo still work.
+Open [http://localhost:8000](http://localhost:8000). A sample target (vertical SaaS, ~$25M ARR, growth_equity) is pre-filled. Set `GOOGLE_API_KEY` (or `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`) in `.env` to enable LLM features; without it the deterministic engine and template memo still work.
 
 ## Inputs
 
 ### Deal context (required)
 | Field | Values |
 |-------|--------|
-| `buyer_segment` | `growth_equity` \| `lmm` \| `strategic` |
 | `thesis_tags` | `[]` (free-form strings) |
 | `price` | USD millions, or `null` → solve-for-price |
 | `return_target` | Target IRR, e.g. `25.0` |
@@ -133,7 +184,7 @@ Each metric is graded against cohort benchmarks (Q1/median/Q3) with direction (`
 | Below  | 2 | Q1–median | median–Q3 |
 | Weak   | 1 | < Q1 | > Q3 |
 
-Composite = Σ(points × weight) / Σ(weights), using buyer-segment weight profiles.
+Composite = Σ(points × weight) / Σ(weights), using the weight profile from `EngagementContext`.
 
 **Cohort lookup:** key `{stage}|{vertical}|{size_band}`. If no exact match, widens to `_widened|{vertical}`, then `_widened|default`. Confidence: `high → medium → low`.
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 from ..exceptions import LLMError
-from .gateway import GeminiGateway
+from .gateway import LLMGateway
 
 _GENERATE_SYSTEM = """\
 You are a senior buy-side M&A analyst and forensic due diligence expert. Generate a due diligence question list grounded strictly in the provided findings. Output ONLY valid JSON — no markdown fences, no preamble, no trailing text.
@@ -78,7 +78,7 @@ def _parse_json_array(text: str) -> list:
     return json.loads(text[start:end + 1])
 
 
-def generate_questions(gateway: GeminiGateway, findings_dict: dict,
+def generate_questions(gateway: LLMGateway, findings_dict: dict,
                        existing_questions: list[dict] | None = None) -> list[dict]:
     """Generate structured DD questions from a findings dict."""
     answered = [q for q in (existing_questions or []) if q.get("status") == "resolved"]
@@ -102,7 +102,7 @@ def generate_questions(gateway: GeminiGateway, findings_dict: dict,
     return _parse_json_array(text.strip())
 
 
-def review_questions(gateway: GeminiGateway, open_questions: list[dict],
+def review_questions(gateway: LLMGateway, open_questions: list[dict],
                      findings_dict: dict) -> list[dict]:
     """Return [{id, reason}] for open questions now resolved by the new findings."""
     if not open_questions:
